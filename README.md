@@ -5,6 +5,7 @@ A warehouse order-management web application for sales representatives, customer
 ## MVP included
 
 - Sales dashboard with live workflow metrics and recent requests
+- Sales-initiated targeted order lists: choose a customer and products, generate a secure link, and receive quantities back into the same order workflow
 - Product and inventory workspace modeled on the supplied 848-SKU warehouse list
 - Search, category filtering, visibility controls, stock status, price, create, and edit
 - CSV import using `sku,name,category,pack,stock,price`; SKU is the update key

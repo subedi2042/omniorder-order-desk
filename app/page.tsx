@@ -1,12 +1,12 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 type Product = { sku: string; name: string; category: string; pack: string; price: number; stock: number; published: boolean };
 type CustomerProduct = Omit<Product, "price">;
 type Cart = Record<string, number>;
 type Stage = "request" | "proforma" | "approved" | "dispatched" | "invoiced";
-type View = "landing" | "home" | "products" | "orders" | "documents" | "customers" | "settings" | "catalog";
+type View = "landing" | "home" | "products" | "create-list" | "orders" | "documents" | "customers" | "settings" | "catalog";
 
 const seedProducts: Product[] = [
   { sku: "10100", name: "Amchur Ground 3oz (85g)", category: "3 Oz", pack: "12 × 3oz", price: 2.99, stock: 0, published: false },
@@ -44,6 +44,13 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [signInOpen, setSignInOpen] = useState(false);
   const [customerSignInOpen, setCustomerSignInOpen] = useState(false);
+  const [targetedList, setTargetedList] = useState(false);
+  const [targetSkus, setTargetSkus] = useState<string[]>(["10102", "10103", "10107", "10123", "10143", "10191"]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("list")) { setTargetedList(true); setView("catalog"); }
+  }, []);
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
   const cartItems = products.filter((p) => (cart[p.sku] || 0) > 0);
@@ -56,7 +63,7 @@ export default function Home() {
   const shipping = subtotal ? 24 : 0;
   const tax = subtotal * 0.0825;
   const total = subtotal + shipping + tax;
-  const customerProducts: CustomerProduct[] = filtered.filter((p) => p.published).map(({ price: _privatePrice, ...product }) => product);
+  const customerProducts: CustomerProduct[] = filtered.filter((p) => p.published && (!targetedList || targetSkus.includes(p.sku))).map(({ price: _privatePrice, ...product }) => product);
   const customerCartItems: CustomerProduct[] = cartItems.map(({ price: _privatePrice, ...product }) => product);
 
   const setQty = (sku: string, qty: number) => setCart((current) => ({ ...current, [sku]: Math.max(0, qty) }));
@@ -80,7 +87,7 @@ export default function Home() {
   };
 
   if (view === "landing") return <Landing onSales={() => setSignInOpen(true)} onCustomer={() => setCustomerSignInOpen(true)} signInOpen={signInOpen} customerSignInOpen={customerSignInOpen} onClose={() => { setSignInOpen(false); setCustomerSignInOpen(false); }} onSignedIn={() => { setSignInOpen(false); go("home"); }} onCustomerSignedIn={() => { setCustomerSignInOpen(false); go("catalog"); }} />;
-  if (view === "catalog") return <CustomerCatalog {...{ products: customerProducts, query, setQuery, categories, category, setCategory, cart, setQty, cartItems: customerCartItems, reviewOpen, setReviewOpen, orderCreated, setOrderCreated, stage, setStage, go, notify, proformaTotal: stage === "proforma" ? total || 486.38 : undefined }} />;
+  if (view === "catalog") return <CustomerCatalog {...{ products: customerProducts, query, setQuery, categories, category, setCategory, cart, setQty, cartItems: customerCartItems, reviewOpen, setReviewOpen, orderCreated, setOrderCreated, stage, setStage, go, notify, targetedList, proformaTotal: stage === "proforma" ? total || 486.38 : undefined }} />;
 
   return (
     <div className="app-shell">
@@ -103,6 +110,7 @@ export default function Home() {
         <header className="mobile-header"><button className="brand" onClick={() => go("home")}><span className="brand-mark">OD</span><span>Order Desk</span></button><button className="icon-button" onClick={() => go("catalog")}>Catalog</button></header>
         {view === "home" && <Dashboard orderCreated={orderCreated} stage={stage} go={go} notify={notify} />}
         {view === "products" && <Products products={products} setProducts={setProducts} filtered={filtered} query={query} setQuery={setQuery} categories={categories} category={category} setCategory={setCategory} setEditing={setEditing} importCsv={importCsv} notify={notify} go={go} />}
+        {view === "create-list" && <SalesOrderListBuilder products={products.filter((p) => p.published)} selected={targetSkus} setSelected={setTargetSkus} onSend={() => { setTargetedList(true); const link = `${location.origin}/?list=OL-2026-0048&customer=valley-market`; navigator.clipboard?.writeText(link); history.replaceState({}, "", link); notify("Targeted order-list link copied for Valley Market"); go("catalog"); }} notify={notify} />}
         {view === "orders" && <Orders orderCreated={orderCreated} stage={stage} setStage={setStage} cartItems={cartItems} cart={cart} subtotal={subtotal} total={total} go={go} notify={notify} />}
         {view === "documents" && <Documents stage={stage} setStage={setStage} total={total || 486.38} go={go} notify={notify} />}
         {view === "customers" && <Placeholder title="Customers" description="Manage customer contacts, catalogs, and order history." />}
@@ -138,7 +146,7 @@ function Nav({ label, icon, active, badge, onClick }: { label: string; icon: str
 
 function Dashboard({ orderCreated, stage, go, notify }: { orderCreated: boolean; stage: Stage; go: (v: View) => void; notify: (s: string) => void }) {
   return <div className="page dashboard-page">
-    <div className="page-head"><div><p className="eyebrow">Friday, August 7</p><h1>Good afternoon, Dipendra</h1><p>Here’s what needs your attention today.</p></div><div className="actions"><button className="button secondary" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Customer catalog link copied"); }}>↗ Share catalog</button><button className="button primary" onClick={() => go("products")}>＋ Upload inventory</button></div></div>
+    <div className="page-head"><div><p className="eyebrow">Friday, August 7</p><h1>Good afternoon, Dipendra</h1><p>Here’s what needs your attention today.</p></div><div className="actions"><button className="button secondary" onClick={() => go("create-list")}>＋ Create order list</button><button className="button secondary" onClick={() => { navigator.clipboard?.writeText(location.href); notify("General catalog link copied"); }}>↗ Share catalog</button><button className="button primary" onClick={() => go("products")}>＋ Upload inventory</button></div></div>
     <div className="metric-grid">
       <Metric tone="green" value={orderCreated ? "13" : "12"} label="New requests" meta="3 since yesterday" />
       <Metric tone="amber" value={stage === "proforma" ? "5" : "4"} label="Awaiting approval" meta="2 due today" />
@@ -161,6 +169,18 @@ function Dashboard({ orderCreated, stage, go, notify }: { orderCreated: boolean;
 
 function Metric({ tone, value, label, meta }: { tone: string; value: string; label: string; meta: string }) { return <div className="metric"><span className={`metric-icon ${tone}`}>●</span><div><strong>{value}</strong><p>{label}</p><small>{meta}</small></div></div>; }
 function OrderRow({ initials, customer, number, details, status, fresh, onClick }: { initials: string; customer: string; number: string; details: string; status: string; fresh?: boolean; onClick: () => void }) { return <button className={`order-row ${fresh ? "fresh" : ""}`} onClick={onClick}><span className="avatar pale">{initials}</span><span className="order-info"><strong>{customer}</strong><small>{number} · {details}</small></span><span className={`badge ${status.toLowerCase()}`}>{status}</span><span>›</span></button>; }
+
+function SalesOrderListBuilder({ products, selected, setSelected, onSend, notify }: { products: Product[]; selected: string[]; setSelected: (s: string[]) => void; onSend: () => void; notify: (s: string) => void }) {
+  const [search, setSearch] = useState("");
+  const visible = products.filter((p) => `${p.sku} ${p.name}`.toLowerCase().includes(search.toLowerCase()));
+  const toggle = (sku: string) => setSelected(selected.includes(sku) ? selected.filter((s) => s !== sku) : [...selected, sku]);
+  return <div className="page">
+    <div className="page-head"><div><p className="eyebrow">Sales initiated order</p><h1>Create a customer order list</h1><p>Choose the customer and products, then send a secure quantity-request link.</p></div><span className="badge approved">Draft OL-2026-0048</span></div>
+    <div className="builder-grid"><section className="panel builder-main"><div className="builder-section"><span className="builder-number">1</span><div><h2>Choose customer</h2><p>The link will be restricted to this customer and assigned sales rep.</p></div></div><div className="customer-choice"><span className="avatar pale">VM</span><span><b>Valley Market</b><small>Maya Patel · orders@valleymarket.com</small></span><span className="badge approved">Selected</span></div>
+      <div className="builder-section"><span className="builder-number">2</span><div><h2>Select products</h2><p>Customers will see only these published products, without prices.</p></div></div><div className="search builder-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or SKU" /></div><div className="builder-products">{visible.map((p) => <label className="builder-product" key={p.sku}><input type="checkbox" checked={selected.includes(p.sku)} onChange={() => toggle(p.sku)} /><span><b>{p.name}</b><small>{p.sku} · {p.pack} · {p.stock < 20 ? "Low stock" : "In stock"}</small></span></label>)}</div>
+    </section><aside className="panel builder-summary"><p className="eyebrow">Link summary</p><h2>Valley Market</h2><dl><dt>Products included</dt><dd>{selected.length}</dd><dt>Prices visible</dt><dd>No</dd><dt>Assigned rep</dt><dd>Dipendra Subedi</dd><dt>Expires</dt><dd>Aug 21, 2026</dd></dl><div className="notice"><b>Customer action</b><br/>Enter quantities and send the completed request back to sales.</div><button className="button primary wide" disabled={!selected.length} onClick={onSend}>Generate & copy secure link →</button><button className="button secondary wide" onClick={() => notify("Preview uses the same price-private customer view")}>Preview customer view</button></aside></div>
+  </div>;
+}
 
 function Products({ products, setProducts, filtered, query, setQuery, categories, category, setCategory, setEditing, importCsv, notify, go }: { products: Product[]; setProducts: (p: Product[]) => void; filtered: Product[]; query: string; setQuery: (s: string) => void; categories: string[]; category: string; setCategory: (s: string) => void; setEditing: (p: Product | null) => void; importCsv: (e: ChangeEvent<HTMLInputElement>) => void; notify: (s: string) => void; go: (v: View) => void }) {
   const addProduct = () => { const p = { sku: `NEW-${products.length + 1}`, name: "New product", category: "Imported", pack: "Each", price: 0, stock: 0, published: false }; setProducts([p, ...products]); setEditing(p); };
@@ -201,10 +221,10 @@ function Documents({ stage, setStage, total, go, notify }: { stage: Stage; setSt
 }
 
 function CustomerCatalog(props: any) {
-  const { products, query, setQuery, categories, category, setCategory, cart, setQty, cartItems, reviewOpen, setReviewOpen, orderCreated, setOrderCreated, stage, setStage, go, notify, proformaTotal } = props;
+  const { products, query, setQuery, categories, category, setCategory, cart, setQty, cartItems, reviewOpen, setReviewOpen, orderCreated, setOrderCreated, stage, setStage, go, notify, targetedList, proformaTotal } = props;
   if (stage === "proforma") return <CustomerDocument total={proformaTotal} setStage={setStage} go={go} notify={notify} />;
   if (orderCreated && !reviewOpen) return <div className="customer-shell centered"><header className="customer-header"><Brand /><CustomerRep /></header><main className="confirmation"><span className="success-ring">✓</span><p className="eyebrow">Request received</p><h1>Thank you, Maya.</h1><p>Your order request <b>OR-2026-0137</b> has been sent to Dipendra. You’ll receive a priced pro-forma after stock is reviewed.</p><div className="confirmation-card"><span>{cartItems.length} product lines</span><span>Delivery requested Aug 12</span><span>No payment is due yet</span></div><p className="rep-help">Questions? Call Dipendra directly at <a href="tel:+14155550124">(415) 555-0124</a>.</p><button className="button primary" onClick={() => go("home")}>Open sales workspace →</button></main></div>;
-  return <div className="customer-shell"><header className="customer-header"><Brand /><div><CustomerRep /><button className="text-button" onClick={() => go("home")}>Sales sign in</button></div></header><main className="catalog-main"><div className="catalog-intro"><p className="eyebrow">Order Desk Wholesale</p><h1>Build your order request</h1><p>Choose quantities from today’s available catalog. Your sales rep will confirm pricing and final stock.</p></div><div className="catalog-tools"><div className="search"><span>⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by item or SKU" /></div><div className="chips">{categories.map((c: string) => <button key={c} className={`chip ${category === c ? "active" : ""}`} onClick={() => setCategory(c)}>{c}</button>)}</div></div><div className="catalog-list">{products.map((p: CustomerProduct) => <div className="catalog-row" key={p.sku}><span className="product-symbol">{p.name.slice(0, 1)}</span><span className="catalog-product"><small>{p.sku} · {p.category}</small><strong>{p.name}</strong><span>{p.pack} · Sold by tray</span></span><span className={`availability ${p.stock === 0 ? "out" : p.stock < 20 ? "low" : ""}`}>{p.stock === 0 ? "Out of stock" : p.stock < 20 ? "Low stock" : "In stock"}</span><div className="qty-control"><button disabled={p.stock === 0} onClick={() => setQty(p.sku, (cart[p.sku] || 0) - 1)}>−</button><input aria-label={`Quantity for ${p.name}`} value={cart[p.sku] || 0} onChange={(e) => setQty(p.sku, Number(e.target.value))} /><button disabled={p.stock === 0} onClick={() => setQty(p.sku, (cart[p.sku] || 0) + 1)}>＋</button></div></div>)}</div></main>{cartItems.length > 0 && <div className="cart-bar"><span><b>{cartItems.length}</b> product lines selected</span><button className="button customer-cta" onClick={() => setReviewOpen(true)}>Review order <span>→</span></button></div>}{reviewOpen && <OrderReview {...{ cartItems, cart, setQty, setReviewOpen, setOrderCreated }} />}</div>;
+  return <div className="customer-shell"><header className="customer-header"><Brand /><div><CustomerRep /><button className="text-button" onClick={() => go("home")}>Sales sign in</button></div></header><main className="catalog-main"><div className="catalog-intro">{targetedList && <span className="shared-list-label">Shared order list · OL-2026-0048</span>}<p className="eyebrow">{targetedList ? "Prepared for Valley Market" : "Order Desk Wholesale"}</p><h1>{targetedList ? "Dipendra selected these products for you" : "Build your order request"}</h1><p>{targetedList ? "Enter the quantities you need and send the completed list back to your sales representative. Pricing will be confirmed in the pro-forma." : "Choose quantities from today’s available catalog. Your sales rep will confirm pricing and final stock."}</p></div><div className="catalog-tools"><div className="search"><span>⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by item or SKU" /></div><div className="chips">{categories.map((c: string) => <button key={c} className={`chip ${category === c ? "active" : ""}`} onClick={() => setCategory(c)}>{c}</button>)}</div></div><div className="catalog-list">{products.map((p: CustomerProduct) => <div className="catalog-row" key={p.sku}><span className="product-symbol">{p.name.slice(0, 1)}</span><span className="catalog-product"><small>{p.sku} · {p.category}</small><strong>{p.name}</strong><span>{p.pack} · Sold by tray</span></span><span className={`availability ${p.stock === 0 ? "out" : p.stock < 20 ? "low" : ""}`}>{p.stock === 0 ? "Out of stock" : p.stock < 20 ? "Low stock" : "In stock"}</span><div className="qty-control"><button disabled={p.stock === 0} onClick={() => setQty(p.sku, (cart[p.sku] || 0) - 1)}>−</button><input aria-label={`Quantity for ${p.name}`} value={cart[p.sku] || 0} onChange={(e) => setQty(p.sku, Number(e.target.value))} /><button disabled={p.stock === 0} onClick={() => setQty(p.sku, (cart[p.sku] || 0) + 1)}>＋</button></div></div>)}</div></main>{cartItems.length > 0 && <div className="cart-bar"><span><b>{cartItems.length}</b> product lines selected</span><button className="button customer-cta" onClick={() => setReviewOpen(true)}>Review order <span>→</span></button></div>}{reviewOpen && <OrderReview {...{ cartItems, cart, setQty, setReviewOpen, setOrderCreated }} />}</div>;
 }
 
 function OrderReview({ cartItems, cart, setQty, setReviewOpen, setOrderCreated }: any) { return <div className="drawer-backdrop"><section className="review-drawer"><div className="drawer-head"><div><p className="eyebrow">Step 2 of 2</p><h2>Review your request</h2></div><button className="close" onClick={() => setReviewOpen(false)}>×</button></div><div className="review-items">{cartItems.map((p: CustomerProduct) => <div className="review-item" key={p.sku}><span><b>{p.name}</b><small>{p.sku} · {p.pack}</small></span><div className="qty-control"><button onClick={() => setQty(p.sku, cart[p.sku] - 1)}>−</button><input value={cart[p.sku]} onChange={(e) => setQty(p.sku, Number(e.target.value))}/><button onClick={() => setQty(p.sku, cart[p.sku] + 1)}>＋</button></div></div>)}</div><div className="form-grid"><label>Contact name<input defaultValue="Maya Patel" /></label><label>Business name<input defaultValue="Valley Market" /></label><label>Email<input defaultValue="orders@valleymarket.com" type="email" /></label><label>Phone<input defaultValue="(415) 555-0187" /></label><label>Fulfillment<select><option>Delivery</option><option>Pickup</option></select></label><label>Requested date<input type="date" defaultValue="2026-08-12" /></label><label className="full">Delivery address<input defaultValue="428 Mission Street, San Francisco, CA 94105" /></label><label className="full">Notes<textarea placeholder="Delivery instructions or special requests" /></label></div><div className="notice"><b>This is an order request.</b> Pricing and final availability will be confirmed in your pro-forma.</div><button className="button customer-cta wide" onClick={() => { setOrderCreated(true); setReviewOpen(false); }}>Submit order request →</button></section></div>; }
