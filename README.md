@@ -8,6 +8,7 @@ A warehouse order-management web application for sales representatives, customer
 - Product and inventory workspace modeled on the supplied 848-SKU warehouse list
 - Search, category filtering, visibility controls, stock status, price, create, and edit
 - CSV import using `sku,name,category,pack,stock,price`; SKU is the update key
+- Account-free customer access using a sales-shared secure link or access code plus email
 - Customer-facing, price-private catalog with quantity controls and responsive order review
 - Customer details, delivery preference, requested date, and request confirmation
 - Sales order review with availability, quantity, pricing, and customer context

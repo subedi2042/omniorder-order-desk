@@ -42,6 +42,7 @@ export default function Home() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [toast, setToast] = useState("");
   const [signInOpen, setSignInOpen] = useState(false);
+  const [customerSignInOpen, setCustomerSignInOpen] = useState(false);
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
   const cartItems = products.filter((p) => (cart[p.sku] || 0) > 0);
@@ -75,7 +76,7 @@ export default function Home() {
     event.target.value = "";
   };
 
-  if (view === "landing") return <Landing onSales={() => setSignInOpen(true)} onCustomer={() => go("catalog")} signInOpen={signInOpen} onClose={() => setSignInOpen(false)} onSignedIn={() => { setSignInOpen(false); go("home"); }} />;
+  if (view === "landing") return <Landing onSales={() => setSignInOpen(true)} onCustomer={() => setCustomerSignInOpen(true)} signInOpen={signInOpen} customerSignInOpen={customerSignInOpen} onClose={() => { setSignInOpen(false); setCustomerSignInOpen(false); }} onSignedIn={() => { setSignInOpen(false); go("home"); }} onCustomerSignedIn={() => { setCustomerSignInOpen(false); go("catalog"); }} />;
   if (view === "catalog") return <CustomerCatalog {...{ products: filtered.filter((p) => p.published), query, setQuery, categories, category, setCategory, cart, setQty, cartItems, reviewOpen, setReviewOpen, subtotal, tax, shipping, total, orderCreated, setOrderCreated, stage, setStage, go, notify }} />;
 
   return (
@@ -110,7 +111,7 @@ export default function Home() {
   );
 }
 
-function Landing({ onSales, onCustomer, signInOpen, onClose, onSignedIn }: { onSales: () => void; onCustomer: () => void; signInOpen: boolean; onClose: () => void; onSignedIn: () => void }) {
+function Landing({ onSales, onCustomer, signInOpen, customerSignInOpen, onClose, onSignedIn, onCustomerSignedIn }: { onSales: () => void; onCustomer: () => void; signInOpen: boolean; customerSignInOpen: boolean; onClose: () => void; onSignedIn: () => void; onCustomerSignedIn: () => void }) {
   return <div className="landing">
     <header className="landing-header"><Brand /><div><button className="text-button">? Help</button><button className="text-button" onClick={onSales}>♙ Sign in</button></div></header>
     <main className="landing-main">
@@ -118,12 +119,13 @@ function Landing({ onSales, onCustomer, signInOpen, onClose, onSignedIn }: { onS
       <p className="landing-lead">A faster way for sales teams and customers to manage warehouse orders from any device.</p>
       <div className="entry-grid">
         <section className="entry-card"><span className="entry-icon">▤</span><p className="eyebrow">For your team</p><h2>Sales Rep</h2><p>Manage inventory, review orders, create quotes, and send invoices.</p><button className="button primary wide" onClick={onSales}>Open sales workspace →</button></section>
-        <section className="entry-card customer-entry"><span className="entry-icon">⌑</span><p className="eyebrow">For customers</p><h2>Place an Order</h2><p>Browse available products, choose quantities, and request a quote.</p><button className="button customer-cta wide" onClick={onCustomer}>Start an order →</button></section>
+        <section className="entry-card customer-entry"><span className="entry-icon">⌑</span><p className="eyebrow">For customers</p><h2>Place an Order</h2><p>Use the secure access shared by your sales rep. No account or password needed.</p><button className="button customer-cta wide" onClick={onCustomer}>Customer access →</button></section>
       </div>
       <div className="landing-benefits"><span>▣ <b>Works on any device</b></span><span>♙ <b>Prices stay private</b></span><span>ϟ <b>Fast quote requests</b></span></div>
     </main>
     <footer className="landing-footer">© 2026 Order Desk <span>Privacy</span><span>Support</span></footer>
     {signInOpen && <div className="drawer-backdrop signin-backdrop"><section className="signin-card"><button className="close" onClick={onClose}>×</button><span className="brand-mark">OD</span><p className="eyebrow">Sales workspace</p><h2>Welcome back</h2><p>Sign in to manage products, orders, pro-formas, and invoices.</p><label>Email address<input type="email" defaultValue="sales@orderdesk.example" /></label><label>Password<input type="password" defaultValue="orderdesk" /></label><button className="button primary wide" onClick={onSignedIn}>Sign in to workspace →</button><button className="text-button signin-link" onClick={onSignedIn}>Email me a secure sign-in link</button><small>Demo access is enabled for this MVP.</small></section></div>}
+    {customerSignInOpen && <div className="drawer-backdrop signin-backdrop"><section className="signin-card customer-signin"><button className="close" onClick={onClose}>×</button><span className="brand-mark customer-mark">C</span><p className="eyebrow">Customer access</p><h2>Open your catalog</h2><p>Enter the access details shared by your sales representative. You do not need to create an account.</p><label>Shared access code<input defaultValue="ORD-VM-2026" autoCapitalize="characters" /></label><label>Your email<input type="email" defaultValue="orders@valleymarket.com" /></label><button className="button customer-cta wide" onClick={onCustomerSignedIn}>Open shared catalog →</button><div className="access-note"><b>Have a direct catalog link?</b><br/>Open it and you’ll skip this step automatically.</div><small>Access is limited to the catalog selected for your business.</small></section></div>}
   </div>;
 }
 
