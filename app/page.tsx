@@ -5,7 +5,7 @@ import { ChangeEvent, useMemo, useState } from "react";
 type Product = { sku: string; name: string; category: string; pack: string; price: number; stock: number; published: boolean };
 type Cart = Record<string, number>;
 type Stage = "request" | "proforma" | "approved" | "dispatched" | "invoiced";
-type View = "home" | "products" | "orders" | "documents" | "customers" | "settings" | "catalog";
+type View = "landing" | "home" | "products" | "orders" | "documents" | "customers" | "settings" | "catalog";
 
 const seedProducts: Product[] = [
   { sku: "10100", name: "Amchur Ground 3oz (85g)", category: "3 Oz", pack: "12 × 3oz", price: 2.99, stock: 0, published: false },
@@ -31,7 +31,7 @@ const seedProducts: Product[] = [
 const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 
 export default function Home() {
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<View>("landing");
   const [products, setProducts] = useState(seedProducts);
   const [cart, setCart] = useState<Cart>({});
   const [query, setQuery] = useState("");
@@ -41,6 +41,7 @@ export default function Home() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [toast, setToast] = useState("");
+  const [signInOpen, setSignInOpen] = useState(false);
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
   const cartItems = products.filter((p) => (cart[p.sku] || 0) > 0);
@@ -74,12 +75,13 @@ export default function Home() {
     event.target.value = "";
   };
 
+  if (view === "landing") return <Landing onSales={() => setSignInOpen(true)} onCustomer={() => go("catalog")} signInOpen={signInOpen} onClose={() => setSignInOpen(false)} onSignedIn={() => { setSignInOpen(false); go("home"); }} />;
   if (view === "catalog") return <CustomerCatalog {...{ products: filtered.filter((p) => p.published), query, setQuery, categories, category, setCategory, cart, setQty, cartItems, reviewOpen, setReviewOpen, subtotal, tax, shipping, total, orderCreated, setOrderCreated, stage, setStage, go, notify }} />;
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <button className="brand brand-sidebar" onClick={() => go("home")}><span className="brand-mark">OD</span><span>Order Desk</span></button>
+        <button className="brand brand-sidebar" onClick={() => go("landing")}><span className="brand-mark">OD</span><span>Order Desk</span></button>
         <p className="nav-label">Sales workspace</p>
         <nav>
           <Nav label="Overview" icon="⌂" active={view === "home"} onClick={() => go("home")} />
@@ -106,6 +108,23 @@ export default function Home() {
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
+}
+
+function Landing({ onSales, onCustomer, signInOpen, onClose, onSignedIn }: { onSales: () => void; onCustomer: () => void; signInOpen: boolean; onClose: () => void; onSignedIn: () => void }) {
+  return <div className="landing">
+    <header className="landing-header"><Brand /><div><button className="text-button">? Help</button><button className="text-button" onClick={onSales}>♙ Sign in</button></div></header>
+    <main className="landing-main">
+      <p className="eyebrow">Warehouse ordering, simplified</p><h1>Orders, quotes, and invoices—<br/>all in one place.</h1>
+      <p className="landing-lead">A faster way for sales teams and customers to manage warehouse orders from any device.</p>
+      <div className="entry-grid">
+        <section className="entry-card"><span className="entry-icon">▤</span><p className="eyebrow">For your team</p><h2>Sales Rep</h2><p>Manage inventory, review orders, create quotes, and send invoices.</p><button className="button primary wide" onClick={onSales}>Open sales workspace →</button></section>
+        <section className="entry-card customer-entry"><span className="entry-icon">⌑</span><p className="eyebrow">For customers</p><h2>Place an Order</h2><p>Browse available products, choose quantities, and request a quote.</p><button className="button customer-cta wide" onClick={onCustomer}>Start an order →</button></section>
+      </div>
+      <div className="landing-benefits"><span>▣ <b>Works on any device</b></span><span>♙ <b>Prices stay private</b></span><span>ϟ <b>Fast quote requests</b></span></div>
+    </main>
+    <footer className="landing-footer">© 2026 Order Desk <span>Privacy</span><span>Support</span></footer>
+    {signInOpen && <div className="drawer-backdrop signin-backdrop"><section className="signin-card"><button className="close" onClick={onClose}>×</button><span className="brand-mark">OD</span><p className="eyebrow">Sales workspace</p><h2>Welcome back</h2><p>Sign in to manage products, orders, pro-formas, and invoices.</p><label>Email address<input type="email" defaultValue="sales@orderdesk.example" /></label><label>Password<input type="password" defaultValue="orderdesk" /></label><button className="button primary wide" onClick={onSignedIn}>Sign in to workspace →</button><button className="text-button signin-link" onClick={onSignedIn}>Email me a secure sign-in link</button><small>Demo access is enabled for this MVP.</small></section></div>}
+  </div>;
 }
 
 function Nav({ label, icon, active, badge, onClick }: { label: string; icon: string; active: boolean; badge?: string; onClick: () => void }) {
