@@ -241,7 +241,7 @@ function Landing({ onSales, onCustomer, onPrivacy, onSupport, onFastQuote, signI
       <p className="eyebrow">Warehouse ordering, simplified</p><h1>Orders, quotes, and invoices—<br/>all in one place.</h1>
       <p className="landing-lead">A faster way for sales teams and customers to manage warehouse orders from any device.</p>
       <div className="entry-grid">
-        <section className="entry-card"><span className="entry-icon">▤</span><p className="eyebrow">For your team</p><h2>Sales Rep</h2><p>Manage inventory, review orders, create quotes, and send invoices.</p><button className="button primary wide" onClick={onSales}>Open sales workspace →</button></section>
+        <section className="entry-card"><span className="entry-icon">▤</span><p className="eyebrow">For your team</p><h2>Sales Rep</h2><p>Manage inventory, review orders, create quotes, and send invoices.</p><button className="button primary wide" onClick={onSales}>Log in to sales workspace →</button></section>
         <section className="entry-card customer-entry"><span className="entry-icon">⌑</span><p className="eyebrow">For customers</p><h2>Place an Order</h2><p>Use the secure access shared by your sales rep. No account or password needed.</p><button className="button customer-cta wide" onClick={onCustomer}>Customer access →</button></section>
       </div>
       <div className="landing-benefits"><span>▣ <b>Works on any device</b></span><span>♙ <b>Single-order secure access</b></span><button onClick={onFastQuote}>ϟ <b>Fast quote requests</b><small>Learn how it works →</small></button></div>
@@ -281,7 +281,7 @@ function GoogleSalesSignIn({ onSignedIn }: { onSignedIn: (user: SalesUser) => vo
     script.onerror = () => setError("Google sign-in could not be loaded. Check your connection and try again.");
     document.head.appendChild(script);
   }, [clientId, onSignedIn]);
-  if (!clientId) return <div className="google-auth-setup"><b>Google sign-in setup required</b><span>Add your Google web client ID to enable the real sign-in button.</span></div>;
+  if (!clientId) return <div className="google-auth-area"><button className="google-button-fallback" disabled title="A Google Web Client ID must be configured first"><span className="google-g">G</span><b>Sign in with Google</b></button><div className="google-auth-setup"><b>Administrator setup required</b><span>The Google button is ready, but a Google Web Client ID must be connected before it can open authentication.</span></div></div>;
   return <><div id="google-sales-signin" className="google-signin-button" aria-label="Sign in with Google" />{error && <p className="form-error">{error}</p>}</>;
 }
 
