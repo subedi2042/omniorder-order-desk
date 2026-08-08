@@ -23,6 +23,7 @@ A warehouse order-management web application for sales representatives and custo
 - PDF includes status, seller, customer, source order, SKU/pack lines, quantities, unit prices, shipping, tax, total, terms, and sales-rep contact
 - Responsive layouts for desktop, tablet, and phone
 - Real Google Identity Services sign-in requirement for the sales workspace, with server-side ID-token verification and an HTTP-only session cookie
+- First-time sales account registration and returning email/password sign-in, with durable D1 storage and PBKDF2 password hashing
 
 ## Google sales sign-in setup
 
