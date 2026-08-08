@@ -55,7 +55,7 @@ function quoteAmounts(products: Product[], cart: Cart, quoteLines: QuoteLine[], 
   return { lines, subtotal, discount, shipping, tax, total: discountedSubtotal + shipping + tax };
 }
 
-function downloadApprovedProformaPdf(products: Product[], cart: Cart, quoteLines: QuoteLine[], discountPercent: number, quoteNotes: string) {
+function createProformaPdf(products: Product[], cart: Cart, quoteLines: QuoteLine[], discountPercent: number, quoteNotes: string, approved: boolean) {
   const { lines, subtotal, discount, shipping, tax, total } = quoteAmounts(products, cart, quoteLines, discountPercent);
   const escapePdf = (value: string) => value.replace(/[^\x20-\x7E]/g, (character) => character === "×" ? "x" : "-").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
   const text = (value: string, x: number, y: number, size = 10, bold = false, color = "0.05 0.09 0.08") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm (${escapePdf(value)}) Tj ET`;
@@ -64,7 +64,8 @@ function downloadApprovedProformaPdf(products: Product[], cart: Cart, quoteLines
   const commands = [
     fill(36, 706, 44, 44, "0 .31 .26"), text("OD", 47, 722, 16, true, "1 1 1"),
     text("Order Desk Wholesale", 94, 731, 15, true), text("San Francisco, California", 94, 713, 9, false, ".35 .40 .38"),
-    fill(504, 735, 72, 20, ".90 .96 .93"), text("APPROVED", 515, 742, 8, true, "0 .31 .26"),
+    fill(approved ? 504 : 462, 735, approved ? 72 : 114, 20, approved ? ".90 .96 .93" : "1 .94 .84"),
+    text(approved ? "APPROVED" : "AWAITING APPROVAL", approved ? 515 : 471, 742, 8, true, approved ? "0 .31 .26" : ".55 .28 0"),
     text("PRO-FORMA", 414, 704, 24, false), text("PF-2026-0042", 498, 684, 10, true, ".35 .40 .38"),
     rule(36, 665, 576, 665, 1.2, ".05 .09 .08"),
     text("BILL TO", 36, 632, 9, true, ".35 .40 .38"), text("Valley Market", 36, 608, 13, true),
@@ -89,7 +90,7 @@ function downloadApprovedProformaPdf(products: Product[], cart: Cart, quoteLines
     text("Tax (8.25%)", 390, totalsY - 60, 10), text(money(tax), 530, totalsY - 60, 10, true),
     rule(390, totalsY - 73, 576, totalsY - 73, 1.1, ".05 .09 .08"),
     text("Total", 390, totalsY - 98, 15, true), text(money(total), 520, totalsY - 98, 15, true),
-    rule(36, 55, 576, 55), text("Approved pro-forma. Pricing and quantities accepted by Valley Market.", 36, 36, 8, false, ".35 .40 .38"),
+    rule(36, 55, 576, 55), text(approved ? "Approved pro-forma. Pricing and quantities accepted by Valley Market." : "Preview only. Customer approval is required before this pro-forma is accepted.", 36, 36, 8, false, ".35 .40 .38"),
     text(quoteNotes ? `Sales note: ${quoteNotes.slice(0, 78)}` : "Source order OR-2026-0137 | Sales rep: Dipendra Subedi | (415) 555-0124", 36, 22, 8, false, ".35 .40 .38"),
   );
   const content = commands.join("\n");
@@ -106,7 +107,11 @@ function downloadApprovedProformaPdf(products: Product[], cart: Cart, quoteLines
   objects.forEach((object, index) => { offsets.push(new TextEncoder().encode(pdf).length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
   const xref = new TextEncoder().encode(pdf).length;
   pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n `).join("\n")}\ntrailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  const url = URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
+  return URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
+}
+
+function downloadApprovedProformaPdf(products: Product[], cart: Cart, quoteLines: QuoteLine[], discountPercent: number, quoteNotes: string) {
+  const url = createProformaPdf(products, cart, quoteLines, discountPercent, quoteNotes, true);
   const link = document.createElement("a");
   link.href = url;
   link.download = "PF-2026-0042-approved-pro-forma.pdf";
@@ -354,6 +359,16 @@ function OrderReview({ cartItems, cart, setQty, setReviewOpen, setOrderCreated }
 function CustomerDocument({ total, products, cart, quoteLines, discountPercent, quoteNotes, setStage, setChangeRequest, go, notify }: { total: number; products: Product[]; cart: Cart; quoteLines: QuoteLine[]; discountPercent: number; quoteNotes: string; setStage: (s: Stage) => void; setChangeRequest: (s: string) => void; go: (v: View) => void; notify: (s: string) => void }) {
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestText, setRequestText] = useState("");
+  const [previewUrl, setPreviewUrl] = useState("");
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+  const closePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl("");
+  };
+  const openPreview = () => {
+    closePreview();
+    setPreviewUrl(createProformaPdf(products, cart, quoteLines, discountPercent, quoteNotes, false));
+  };
   const submitRequest = () => {
     const note = requestText.trim();
     if (!note) return;
@@ -362,7 +377,7 @@ function CustomerDocument({ total, products, cart, quoteLines, discountPercent, 
     setRequestOpen(false);
     notify("Change request sent to sales");
   };
-  return <div className="customer-shell centered"><header className="customer-header"><Brand /><div><CustomerRep /><span className="secure">● Secure document</span></div></header><main className="customer-doc"><p className="eyebrow">Action requested</p><h1>Your pro-forma is ready</h1><p>Review the confirmed quantities, negotiated pricing, discount, and terms from Order Desk Wholesale.</p><section className="approval-card"><div><span>PF</span><div><b>Pro-forma PF-2026-0042</b><small>Valley Market · Valid through Aug 21{discountPercent > 0 ? ` · ${discountPercent}% discount` : ""}</small></div></div><strong>{money(total)}</strong></section>{quoteNotes && <div className="change-summary"><small>Sales note</small><p>{quoteNotes}</p></div>}<div className="approval-actions"><button className="button secondary" onClick={() => setRequestOpen(true)}>Request changes</button><button className="button customer-cta" onClick={() => { setStage("approved"); downloadApprovedProformaPdf(products, cart, quoteLines, discountPercent, quoteNotes); notify("Approved pro-forma PDF downloaded"); go("documents"); }}>✓ Approve & download PDF</button></div><p className="fine-print">Approving confirms quantities, pricing, discount, notes, and terms shown in the pro-forma. The approved PDF is the final step in this MVP.</p></main>{requestOpen && <div className="drawer-backdrop signin-backdrop"><section className="signin-card change-request-dialog" role="dialog" aria-modal="true" aria-labelledby="change-request-title"><button className="close" onClick={() => setRequestOpen(false)}>×</button><p className="eyebrow">Before approval</p><h2 id="change-request-title">What should sales change?</h2><p>Describe quantity, product, delivery, pricing, discount, or terms that need revision. The pro-forma will remain unapproved.</p><label>Requested changes<textarea autoFocus value={requestText} onChange={(event) => setRequestText(event.target.value)} placeholder="Example: Please change All Spice Ground to 18 cases and move delivery to Aug 14." /></label><div className="edit-actions"><button className="button secondary" onClick={() => setRequestOpen(false)}>Cancel</button><button className="button customer-cta" disabled={!requestText.trim()} onClick={submitRequest}>Send request to sales →</button></div></section></div>}</div>;
+  return <div className="customer-shell centered"><header className="customer-header"><Brand /><div><CustomerRep /><span className="secure">● Secure document</span></div></header><main className="customer-doc"><p className="eyebrow">Action requested</p><h1>Your pro-forma is ready</h1><p>Review the confirmed quantities, negotiated pricing, discount, and terms from Order Desk Wholesale.</p><section className="approval-card"><div><span>PF</span><div><b>Pro-forma <button className="proforma-number-link" onClick={openPreview}>PF-2026-0042 ↗</button></b><small>Click the PF number to preview the PDF before approving</small><small>Valley Market · Valid through Aug 21{discountPercent > 0 ? ` · ${discountPercent}% discount` : ""}</small></div></div><strong>{money(total)}</strong></section>{quoteNotes && <div className="change-summary"><small>Sales note</small><p>{quoteNotes}</p></div>}<div className="approval-actions"><button className="button secondary" onClick={() => setRequestOpen(true)}>Request changes</button><button className="button customer-cta" onClick={() => { closePreview(); setStage("approved"); downloadApprovedProformaPdf(products, cart, quoteLines, discountPercent, quoteNotes); notify("Approved pro-forma PDF downloaded"); go("documents"); }}>✓ Approve & download PDF</button></div><p className="fine-print">Approving confirms quantities, pricing, discount, notes, and terms shown in the pro-forma. The approved PDF is the final step in this MVP.</p></main>{previewUrl && <div className="pdf-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="pdf-preview-title"><section className="pdf-preview-modal"><header><div><p className="eyebrow">Awaiting approval</p><h2 id="pdf-preview-title">PF-2026-0042 preview</h2></div><button className="close" onClick={closePreview} aria-label="Close PDF preview">×</button></header><iframe title="Pro-forma PF-2026-0042 PDF preview" src={previewUrl} /></section></div>}{requestOpen && <div className="drawer-backdrop signin-backdrop"><section className="signin-card change-request-dialog" role="dialog" aria-modal="true" aria-labelledby="change-request-title"><button className="close" onClick={() => setRequestOpen(false)}>×</button><p className="eyebrow">Before approval</p><h2 id="change-request-title">What should sales change?</h2><p>Describe quantity, product, delivery, pricing, discount, or terms that need revision. The pro-forma will remain unapproved.</p><label>Requested changes<textarea autoFocus value={requestText} onChange={(event) => setRequestText(event.target.value)} placeholder="Example: Please change All Spice Ground to 18 cases and move delivery to Aug 14." /></label><div className="edit-actions"><button className="button secondary" onClick={() => setRequestOpen(false)}>Cancel</button><button className="button customer-cta" disabled={!requestText.trim()} onClick={submitRequest}>Send request to sales →</button></div></section></div>}</div>;
 }
 
 function CustomerRep() { return <span className="rep-contact"><span className="rep-dot">DS</span><span>Your rep <b>Dipendra Subedi</b></span><a href="tel:+14155550124">(415) 555-0124</a></span>; }

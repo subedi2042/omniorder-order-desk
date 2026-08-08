@@ -18,6 +18,7 @@ A warehouse order-management web application for sales representatives and custo
 - Sales order review with availability, quantity, pricing, and customer context
 - Sales pro-forma editor with product substitution, line add/remove, quantity changes, unit-price overrides, percentage discount, and customer-facing notes
 - Pro-forma document, secure customer approval view, and offline approval recording
+- Clickable pro-forma number with an in-app, read-only PDF preview before customer approval
 - Approved pro-forma PDF that visually matches the document shown in the application
 - PDF includes status, seller, customer, source order, SKU/pack lines, quantities, unit prices, shipping, tax, total, terms, and sales-rep contact
 - Responsive layouts for desktop, tablet, and phone
