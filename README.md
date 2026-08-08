@@ -11,6 +11,8 @@ A warehouse order-management web application for sales representatives and custo
 - CSV import using `sku,name,category,pack,stock,price`; SKU is the update key
 - Account-free customer access using a single-order secure token or a new sales-shared access code
 - Returning customers may select a saved profile, but must enter a newly issued code for every order
+- First-time customers may create a profile only after a valid sales-issued code is verified
+- Public Fast Quote, Privacy, and fictitious Technical Support pages with working navigation and contact links
 - Customer-facing, price-private catalog with quantity controls and responsive order review
 - Customer details, delivery preference, requested date, and request confirmation
 - Sales order review with availability, quantity, pricing, and customer context
