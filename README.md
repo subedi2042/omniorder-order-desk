@@ -1,6 +1,6 @@
 # OmniOrder / Order Desk
 
-A warehouse order-management web application for sales representatives, customers, and distribution teams. The MVP carries one order through a complete operational workflow without retyping: published catalog → customer quantity request → sales review → priced pro-forma → customer approval → distribution dispatch → final invoice.
+A warehouse order-management web application for sales representatives and customers. This branch deliberately delivers the launch-ready first workflow: published catalog → customer quantity request → sales review → priced pro-forma → customer approval → matching approved pro-forma PDF.
 
 ## MVP included
 
@@ -9,14 +9,14 @@ A warehouse order-management web application for sales representatives, customer
 - Product and inventory workspace modeled on the supplied 848-SKU warehouse list
 - Search, category filtering, visibility controls, stock status, price, create, and edit
 - CSV import using `sku,name,category,pack,stock,price`; SKU is the update key
-- Account-free customer access using a sales-shared secure link or access code plus email
+- Account-free customer access using a single-order secure token or a new sales-shared access code
+- Returning customers may select a saved profile, but must enter a newly issued code for every order
 - Customer-facing, price-private catalog with quantity controls and responsive order review
 - Customer details, delivery preference, requested date, and request confirmation
 - Sales order review with availability, quantity, pricing, and customer context
 - Pro-forma document, secure customer approval view, and offline approval recording
-- Shared sales/distribution fulfillment timeline
-- Dispatch action that unlocks an immutable-numbered final invoice
-- Final invoice action representing customer email delivery with the sales rep copied
+- Approved pro-forma PDF that visually matches the document shown in the application
+- PDF includes status, seller, customer, source order, SKU/pack lines, quantities, unit prices, shipping, tax, total, terms, and sales-rep contact
 - Responsive layouts for desktop, tablet, and phone
 
 The interface contains seeded sample inventory from the supplied product list. The source HTML contains the complete 848-item mapping; the MVP surfaces a representative cross-category subset so the workflow stays fast and reviewable.
@@ -27,6 +27,8 @@ The interface contains seeded sample inventory from the supplied product list. T
 npm install
 npm run dev
 ```
+
+Open the exact local URL printed in the terminal. The demo includes published inventory, stock levels, wholesale prices, customer information, tax, shipping, and document numbering. See [`LOCAL_WORKFLOW_TEST.md`](LOCAL_WORKFLOW_TEST.md) for the two-role test script.
 
 For a production build:
 
@@ -47,20 +49,21 @@ Re-importing an existing SKU updates that item rather than creating a duplicate.
 
 ## Implementation roadmap
 
-### Phase 1 — Interactive MVP (current)
+### Phase 1 — Approved pro-forma MVP (current branch)
 
 - Validate the end-to-end workflow and role handoffs
 - Use representative source products and browser-based CSV parsing
-- Demonstrate catalog publishing, order request, quoting, approval, dispatch, and invoice issuance
+- Demonstrate catalog publishing, either customer- or sales-initiated ordering, quoting, approval, and approved PDF download
 - Establish the responsive visual system and business terminology
 
-### Phase 2 — Durable multi-user pilot
+### Phase 2 — Durable multi-user pilot and fulfillment
 
 - Add database-backed products, customers, orders, document snapshots, and activity history
 - Add secure sales authentication and role permissions for sales, distribution, and admin
 - Store imports and generated PDF documents in object storage
 - Add transactional email delivery, approval links, expiry, and audit events
 - Import and validate all 848 source products and support spreadsheet column mapping
+- Activate the retained distribution, dispatch, final invoice, and payment workflow
 
 ### Phase 3 — Operational launch
 
