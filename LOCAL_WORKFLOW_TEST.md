@@ -20,10 +20,10 @@ The local catalog contains representative products with SKU, pack, published sta
 4. Review and submit the request. Confirm that no prices appear in the catalog or request review.
 5. Choose **Open sales workspace** and open **Orders**.
 6. Review stock, pricing, customer, and delivery details, then create the pro-forma.
-7. Open the customer approval view. This is the first customer screen where prices and the total appear.
-8. Approve the pro-forma.
+7. Before sending, change an item, quantity, or unit price if needed; optionally add a percentage discount and customer-facing note. Confirm the recalculated subtotal, discount, tax, and total.
+8. Open the customer approval view. This is the first customer screen where prices, discounts, notes, and the total appear.
 9. Approve the pro-forma and confirm that `PF-2026-0042-approved-pro-forma.pdf` downloads.
-10. Confirm that the PDF visually matches the approved pro-forma shown on screen. This is the endpoint of the current MVP branch.
+10. Confirm that the PDF visually matches the approved pro-forma shown on screen, including negotiated pricing, discount, and notes. This is the endpoint of the current MVP branch.
 
 ## Sales-started workflow
 

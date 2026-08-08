@@ -14,6 +14,7 @@ A warehouse order-management web application for sales representatives and custo
 - Customer-facing, price-private catalog with quantity controls and responsive order review
 - Customer details, delivery preference, requested date, and request confirmation
 - Sales order review with availability, quantity, pricing, and customer context
+- Sales pro-forma editor with product substitution, line add/remove, quantity changes, unit-price overrides, percentage discount, and customer-facing notes
 - Pro-forma document, secure customer approval view, and offline approval recording
 - Approved pro-forma PDF that visually matches the document shown in the application
 - PDF includes status, seller, customer, source order, SKU/pack lines, quantities, unit prices, shipping, tax, total, terms, and sales-rep contact
