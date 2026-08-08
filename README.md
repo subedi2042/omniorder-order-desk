@@ -22,6 +22,11 @@ A warehouse order-management web application for sales representatives and custo
 - Approved pro-forma PDF that visually matches the document shown in the application
 - PDF includes status, seller, customer, source order, SKU/pack lines, quantities, unit prices, shipping, tax, total, terms, and sales-rep contact
 - Responsive layouts for desktop, tablet, and phone
+- Real Google Identity Services sign-in requirement for the sales workspace, with server-side ID-token verification and an HTTP-only session cookie
+
+## Google sales sign-in setup
+
+Create a Google OAuth 2.0 Web application client and authorize both the local and published application origins. Copy `.env.example` to `.env.local`, set `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and generate a long random `AUTH_SESSION_SECRET`. Add the same values to the hosted environment before publishing. No Google client secret is used or committed.
 
 The interface contains seeded sample inventory from the supplied product list. The source HTML contains the complete 848-item mapping; the MVP surfaces a representative cross-category subset so the workflow stays fast and reviewable.
 

@@ -6,6 +6,7 @@ type Product = { sku: string; name: string; category: string; pack: string; pric
 type CustomerProduct = Omit<Product, "price">;
 type Cart = Record<string, number>;
 type QuoteLine = { sku: string; quantity: number; unitPrice: number };
+type SalesUser = { sub: string; email: string; name: string; picture?: string };
 type Stage = "request" | "proforma" | "approved" | "dispatched" | "invoiced";
 type View = "landing" | "privacy" | "support" | "fast-quote" | "home" | "products" | "create-list" | "orders" | "documents" | "customers" | "settings" | "catalog";
 
@@ -140,10 +141,12 @@ export default function Home() {
   const [quoteLines, setQuoteLines] = useState<QuoteLine[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [quoteNotes, setQuoteNotes] = useState("");
+  const [salesUser, setSalesUser] = useState<SalesUser | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("token")) { setTargetedList(true); setView("catalog"); }
+    fetch("/api/auth/google").then((response) => response.json()).then((data) => setSalesUser(data.user || null)).catch(() => undefined);
   }, []);
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
@@ -181,7 +184,7 @@ export default function Home() {
     event.target.value = "";
   };
 
-  if (view === "landing") return <Landing onSales={() => setSignInOpen(true)} onCustomer={() => setCustomerSignInOpen(true)} onPrivacy={() => go("privacy")} onSupport={() => go("support")} onFastQuote={() => go("fast-quote")} signInOpen={signInOpen} customerSignInOpen={customerSignInOpen} onClose={() => { setSignInOpen(false); setCustomerSignInOpen(false); }} onSignedIn={() => { setSignInOpen(false); go("home"); }} onCustomerSignedIn={() => { setCustomerSignInOpen(false); go("catalog"); }} />;
+  if (view === "landing") return <Landing onSales={() => salesUser ? go("home") : setSignInOpen(true)} onCustomer={() => setCustomerSignInOpen(true)} onPrivacy={() => go("privacy")} onSupport={() => go("support")} onFastQuote={() => go("fast-quote")} signInOpen={signInOpen} customerSignInOpen={customerSignInOpen} onClose={() => { setSignInOpen(false); setCustomerSignInOpen(false); }} onSignedIn={(user) => { setSalesUser(user); setSignInOpen(false); go("home"); }} onCustomerSignedIn={() => { setCustomerSignInOpen(false); go("catalog"); }} />;
   if (view === "privacy") return <PrivacyPage onBack={() => go("landing")} onSupport={() => go("support")} />;
   if (view === "support") return <SupportPage onBack={() => go("landing")} />;
   if (view === "fast-quote") return <FastQuotePage onBack={() => go("landing")} onStart={() => { go("landing"); setCustomerSignInOpen(true); }} />;
@@ -201,7 +204,7 @@ export default function Home() {
         </nav>
         <div className="sidebar-bottom">
           <Nav label="Settings" icon="⚙" active={view === "settings"} onClick={() => go("settings")} />
-          <div className="profile"><span className="avatar">DS</span><span><strong>Dipendra</strong><small>Sales representative</small></span></div>
+          <button className="profile signed-in-profile" onClick={async () => { await fetch("/api/auth/google", { method: "DELETE" }); setSalesUser(null); go("landing"); }}><span className="avatar">{salesUser?.name?.slice(0, 2).toUpperCase() || "DS"}</span><span><strong>{salesUser?.name || "Dipendra"}</strong><small>Sign out</small></span></button>
         </div>
       </aside>
       <main className="admin-main">
@@ -220,7 +223,7 @@ export default function Home() {
   );
 }
 
-function Landing({ onSales, onCustomer, onPrivacy, onSupport, onFastQuote, signInOpen, customerSignInOpen, onClose, onSignedIn, onCustomerSignedIn }: { onSales: () => void; onCustomer: () => void; onPrivacy: () => void; onSupport: () => void; onFastQuote: () => void; signInOpen: boolean; customerSignInOpen: boolean; onClose: () => void; onSignedIn: () => void; onCustomerSignedIn: () => void }) {
+function Landing({ onSales, onCustomer, onPrivacy, onSupport, onFastQuote, signInOpen, customerSignInOpen, onClose, onSignedIn, onCustomerSignedIn }: { onSales: () => void; onCustomer: () => void; onPrivacy: () => void; onSupport: () => void; onFastQuote: () => void; signInOpen: boolean; customerSignInOpen: boolean; onClose: () => void; onSignedIn: (user: SalesUser) => void; onCustomerSignedIn: () => void }) {
   const [customerCode, setCustomerCode] = useState("");
   const [codeVerified, setCodeVerified] = useState(false);
   const [codeError, setCodeError] = useState("");
@@ -244,9 +247,42 @@ function Landing({ onSales, onCustomer, onPrivacy, onSupport, onFastQuote, signI
       <div className="landing-benefits"><span>▣ <b>Works on any device</b></span><span>♙ <b>Single-order secure access</b></span><button onClick={onFastQuote}>ϟ <b>Fast quote requests</b><small>Learn how it works →</small></button></div>
     </main>
     <footer className="landing-footer">© 2026 Order Desk <button onClick={onPrivacy}>Privacy</button><button onClick={onSupport}>Technical support</button></footer>
-    {signInOpen && <div className="drawer-backdrop signin-backdrop"><section className="signin-card"><button className="close" onClick={onClose}>×</button><span className="brand-mark">OD</span><p className="eyebrow">Sales workspace</p><h2>Welcome back</h2><p>Sign in to manage products, orders, pro-formas, and invoices.</p><label>Email address<input type="email" defaultValue="sales@orderdesk.example" /></label><label>Password<input type="password" defaultValue="orderdesk" /></label><button className="button primary wide" onClick={onSignedIn}>Sign in to workspace →</button><button className="text-button signin-link" onClick={onSignedIn}>Email me a secure sign-in link</button><small>Demo access is enabled for this MVP.</small></section></div>}
+    {signInOpen && <div className="drawer-backdrop signin-backdrop"><section className="signin-card"><button className="close" onClick={onClose}>×</button><span className="brand-mark">OD</span><p className="eyebrow">Sales workspace</p><h2>Welcome back</h2><p>Use your verified Google account to manage products, orders, pro-formas, and invoices.</p><GoogleSalesSignIn onSignedIn={onSignedIn} /><small>Google sign-in is required for sales representatives.</small></section></div>}
     {customerSignInOpen && <div className="drawer-backdrop signin-backdrop"><section className="signin-card customer-signin"><button className="close" onClick={onClose}>×</button><span className="brand-mark customer-mark">C</span><p className="eyebrow">Customer access</p><h2>{codeVerified ? "Choose or create your profile" : "Verify your order code"}</h2>{!codeVerified ? <><p>Call your sales representative for a new code before starting each order. A secure token link skips this step.</p><div className="rep-card"><span className="avatar pale">DS</span><span><small>Sales representative</small><b>Dipendra Subedi</b><a href="tel:+14155550124">(415) 555-0124</a></span></div><label>Sales-issued access code<input value={customerCode} onChange={(event) => { setCustomerCode(event.target.value.toUpperCase()); setCodeError(""); }} placeholder="Enter your new single-order code" autoCapitalize="characters" /></label>{codeError && <p className="form-error" role="alert">{codeError}</p>}<button className="button customer-cta wide" disabled={!customerCode.trim()} onClick={verifyCode}>Verify access code →</button><div className="access-note"><b>Have a secure order link?</b><br/>Open the link sent by your sales representative. Tokens and codes expire after one order.</div><small>Local test code: ORD-VM-2026.</small></> : <><p>Your code is verified. Select an existing profile or create one for your first order.</p><div className="profile-mode"><button className={profileMode === "returning" ? "active" : ""} onClick={() => setProfileMode("returning")}>Returning customer</button><button className={profileMode === "new" ? "active" : ""} onClick={() => setProfileMode("new")}>First order</button></div>{profileMode === "returning" ? <label>Saved customer profile<select value={customerProfile} onChange={(event) => setCustomerProfile(event.target.value)}><option>Valley Market - Maya Patel</option><option>Sunrise Supermarket - Arun Shah</option></select></label> : <div className="new-profile-grid"><label>Business name<input value={newProfile.business} onChange={(event) => setNewProfile({ ...newProfile, business: event.target.value })}/></label><label>Contact name<input value={newProfile.contact} onChange={(event) => setNewProfile({ ...newProfile, contact: event.target.value })}/></label><label>Email<input type="email" value={newProfile.email} onChange={(event) => setNewProfile({ ...newProfile, email: event.target.value })}/></label><label>Phone<input type="tel" value={newProfile.phone} onChange={(event) => setNewProfile({ ...newProfile, phone: event.target.value })}/></label></div>}<div className="security-note"><b>Customer data is protected.</b><br/>This MVP keeps profile information only for the current session. Production storage will be encrypted with role-based access and audit logs.</div><button className="button customer-cta wide" disabled={profileMode === "new" && !newProfileReady} onClick={onCustomerSignedIn}>{profileMode === "new" ? "Create profile & open catalog →" : "Open catalog →"}</button></>}</section></div>}
   </div>;
+}
+
+function GoogleSalesSignIn({ onSignedIn }: { onSignedIn: (user: SalesUser) => void }) {
+  const [error, setError] = useState("");
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+  useEffect(() => {
+    if (!clientId) return;
+    const render = () => {
+      const google = (window as typeof window & { google?: { accounts: { id: { initialize: (options: { client_id: string; callback: (response: { credential: string }) => void }) => void; renderButton: (element: HTMLElement, options: Record<string, string>) => void } } } }).google;
+      const element = document.getElementById("google-sales-signin");
+      if (!google || !element) return;
+      google.accounts.id.initialize({ client_id: clientId, callback: async ({ credential }) => {
+        setError("");
+        const response = await fetch("/api/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential }) });
+        const data = await response.json();
+        if (!response.ok || !data.user) { setError(data.error || "Google sign-in failed."); return; }
+        onSignedIn(data.user);
+      } });
+      element.replaceChildren();
+      google.accounts.id.renderButton(element, { theme: "outline", size: "large", shape: "rectangular", text: "signin_with", width: "330" });
+    };
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) { if ((window as typeof window & { google?: unknown }).google) render(); else existing.addEventListener("load", render, { once: true }); return; }
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = render;
+    script.onerror = () => setError("Google sign-in could not be loaded. Check your connection and try again.");
+    document.head.appendChild(script);
+  }, [clientId, onSignedIn]);
+  if (!clientId) return <div className="google-auth-setup"><b>Google sign-in setup required</b><span>Add your Google web client ID to enable the real sign-in button.</span></div>;
+  return <><div id="google-sales-signin" className="google-signin-button" aria-label="Sign in with Google" />{error && <p className="form-error">{error}</p>}</>;
 }
 
 function PublicHeader({ onBack }: { onBack: () => void }) { return <header className="landing-header public-header"><Brand /><button className="text-button" onClick={onBack}>← Back to home</button></header>; }
