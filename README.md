@@ -52,6 +52,12 @@ For a production build:
 npm run build
 ```
 
+## Render preview deployment
+
+The repository includes a `render.yaml` Blueprint for a free Render web service. Connect this repository in Render, select the `codex/desi-kitchen` branch, and deploy the Blueprint. Render generates the session-signing secret automatically and serves the application from a free `onrender.com` URL.
+
+The free service is intended for workflow testing and demonstrations. It sleeps after inactivity and its local filesystem is ephemeral, so uploaded customers, inventory changes, and password accounts can be lost when the service sleeps, restarts, or redeploys. Before using the application for real orders, connect the persistence layer to a durable managed database and configure production Google authentication credentials.
+
 ## CSV import format
 
 Use this header row:
