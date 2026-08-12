@@ -8,3 +8,11 @@ export const salesUsers = sqliteTable("sales_users", {
   passwordSalt: text("password_salt").notNull(),
   createdAt: integer("created_at").notNull(),
 });
+
+export const customers = sqliteTable("customers", {
+  id: text("id").primaryKey(), business: text("business").notNull(), contact: text("contact").notNull(), email: text("email").notNull(), phone: text("phone").notNull(), address: text("address").notNull(), updatedAt: integer("updated_at").notNull(),
+});
+
+export const products = sqliteTable("products", {
+  sku: text("sku").primaryKey(), name: text("name").notNull(), category: text("category").notNull(), pack: text("pack").notNull(), price: integer("price_cents").notNull(), stock: integer("stock").notNull(), published: integer("published", { mode: "boolean" }).notNull(), updatedAt: integer("updated_at").notNull(),
+});

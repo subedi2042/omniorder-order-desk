@@ -1,6 +1,12 @@
-# OmniOrder / Order Desk
+# Desi Kitchen Wholesale Ordering
 
-A warehouse order-management web application for sales representatives and customers. This branch deliberately delivers the launch-ready first workflow: published catalog → customer quantity request → sales review → priced pro-forma → customer approval → matching approved pro-forma PDF.
+A production-oriented wholesale order-management web application for Desi Kitchen sales representatives and customers. This branch delivers the launch workflow: published catalog → customer quantity request → sales review → priced pro-forma → customer approval → matching approved pro-forma PDF.
+
+## Desi Kitchen production branch
+
+The `codex/desi-kitchen` branch carries the Desi Kitchen identity, public logo, Fraunces/DM Sans typography, deep-green/leaf-green/brown palette, authenticated sales workspace, durable product/customer storage, and approved pro-forma workflow. Customers do not create stored login accounts; they enter through a sales-issued secure code or order link.
+
+Sales representative Sahil Man Singh Pradhan should create the first sales account with his valid email on the registration screen. Passwords are never committed to GitHub and are stored only as salted PBKDF2 hashes.
 
 ## MVP included
 
@@ -56,6 +62,14 @@ sku,name,category,pack,stock,price
 ```
 
 Re-importing an existing SKU updates that item rather than creating a duplicate.
+
+Product and inventory imports accept CSV or text-based PDF files. PDF extraction recognizes rows containing SKU, description, stock, and price; CSV is the reliable fallback for scanned or unusually formatted PDFs. Starter files are available at `/templates/desi-kitchen-products-inventory.csv` and `/templates/desi-kitchen-customers.csv`.
+
+Customer CSV header:
+
+```csv
+business,contact,email,phone,address
+```
 
 ## Implementation roadmap
 

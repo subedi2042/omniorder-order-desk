@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Order Desk | Warehouse Ordering",
-  description: "Manage product catalogs, customer order requests, pro-formas, dispatch, and final invoices in one place.",
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+  title: "Desi Kitchen | Wholesale Ordering",
+  description: "Desi Kitchen wholesale catalog, customer order requests, pro-formas, and inventory management.",
+  icons: { icon: "/desi-kitchen-logo.png", shortcut: "/desi-kitchen-logo.png", apple: "/desi-kitchen-logo.png" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
