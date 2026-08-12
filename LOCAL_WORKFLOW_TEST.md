@@ -8,9 +8,9 @@
 - Customer: Valley Market, Maya Patel
 - Sales representative: Dipendra Subedi, (415) 555-0124
 - Order: `OR-2026-0137`
-- Pro-forma: `PF-2026-0042`
+- Estimate: `EST-2026-0042`
 
-The local catalog contains representative products with SKU, pack, published status, inventory, and wholesale prices. Prices are visible in the sales workspace but remain hidden from customers until the pro-forma.
+The local catalog contains representative products with SKU, pack, published status, inventory, and wholesale prices. Prices are visible in the sales workspace but remain hidden from customers until the estimate.
 
 ## Customer-started workflow
 
@@ -19,11 +19,11 @@ The local catalog contains representative products with SKU, pack, published sta
 3. Enter quantities for at least one in-stock product.
 4. Review and submit the request. Confirm that no prices appear in the catalog or request review.
 5. Choose **Open sales workspace** and open **Orders**.
-6. Review stock, pricing, customer, and delivery details, then create the pro-forma.
+6. Review stock, pricing, customer, and delivery details, then create the estimate.
 7. Before sending, change an item, quantity, or unit price if needed; optionally add a percentage discount and customer-facing note. Confirm the recalculated subtotal, discount, tax, and total.
 8. Open the customer approval view. This is the first customer screen where prices, discounts, notes, and the total appear.
-9. Approve the pro-forma and confirm that `PF-2026-0042-approved-pro-forma.pdf` downloads.
-10. Confirm that the PDF visually matches the approved pro-forma shown on screen, including negotiated pricing, discount, and notes. This is the endpoint of the current MVP branch.
+9. Approve the estimate and confirm that `EST-2026-0042-approved-estimate.pdf` downloads.
+10. Confirm that the PDF visually matches the approved estimate shown on screen, including negotiated pricing, discount, and notes. This is the endpoint of the current MVP branch.
 
 ## Sales-started workflow
 
@@ -32,8 +32,8 @@ The local catalog contains representative products with SKU, pack, published sta
 3. Select Valley Market and the products to publish.
 4. Generate the secure link. The customer view opens with only the selected products and no prices.
 5. Enter quantities and submit the request.
-6. Continue from sales review through pro-forma approval and approved PDF download as above.
+6. Continue from sales review through estimate approval and approved PDF download as above.
 
 ## Approved PDF checks
 
-The downloaded PDF should match the screen layout and contain the approved badge, seller, pro-forma and source-order numbers, issue and validity dates, billing address, line items, quantities, unit prices, line totals, shipping, 8.25% tax, total, Net 15 terms, approval note, and assigned sales-representative details.
+The downloaded PDF should match the screen layout and contain the approved badge, seller, estimate and source-order numbers, issue and validity dates, billing address, line items, quantities, unit prices, line totals, shipping, 8.25% tax, total, Net 15 terms, approval note, and assigned sales-representative details.

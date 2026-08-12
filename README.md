@@ -1,10 +1,10 @@
 # Desi Kitchen Wholesale Ordering
 
-A production-oriented wholesale order-management web application for Desi Kitchen sales representatives and customers. This branch delivers the launch workflow: published catalog → customer quantity request → sales review → priced pro-forma → customer approval → matching approved pro-forma PDF.
+A production-oriented wholesale order-management web application for Desi Kitchen sales representatives and customers. This branch delivers the launch workflow: published catalog → customer quantity request → sales review → priced estimate → customer approval → matching approved estimate PDF.
 
 ## Desi Kitchen production branch
 
-The `codex/desi-kitchen` branch carries the Desi Kitchen identity, public logo, Fraunces/DM Sans typography, deep-green/leaf-green/brown palette, authenticated sales workspace, durable product/customer storage, and approved pro-forma workflow. Customers do not create stored login accounts; they enter through a sales-issued secure code or order link.
+The `codex/desi-kitchen` branch carries the Desi Kitchen identity, public logo, Fraunces/DM Sans typography, deep-green/leaf-green/brown palette, authenticated sales workspace, durable product/customer storage, and approved estimate workflow. Customers do not create stored login accounts; they enter through a sales-issued secure code or order link.
 
 Sales representative Sahil Man Singh Pradhan should create the first sales account with his valid email on the registration screen. Passwords are never committed to GitHub and are stored only as salted PBKDF2 hashes.
 
@@ -22,10 +22,10 @@ Sales representative Sahil Man Singh Pradhan should create the first sales accou
 - Customer-facing, price-private catalog with quantity controls and responsive order review
 - Customer details, delivery preference, requested date, and request confirmation
 - Sales order review with availability, quantity, pricing, and customer context
-- Sales pro-forma editor with product substitution, line add/remove, quantity changes, unit-price overrides, percentage discount, and customer-facing notes
-- Pro-forma document, secure customer approval view, and offline approval recording
-- Clickable pro-forma number with an in-app, read-only PDF preview before customer approval
-- Approved pro-forma PDF that visually matches the document shown in the application
+- Sales estimate editor with product substitution, line add/remove, quantity changes, unit-price overrides, percentage discount, and customer-facing notes
+- Estimate document, secure customer approval view, and offline approval recording
+- Clickable estimate number with an in-app, read-only PDF preview before customer approval
+- Approved estimate PDF that visually matches the document shown in the application
 - PDF includes status, seller, customer, source order, SKU/pack lines, quantities, unit prices, shipping, tax, total, terms, and sales-rep contact
 - Responsive layouts for desktop, tablet, and phone
 - Real Google Identity Services sign-in requirement for the sales workspace, with server-side ID-token verification and an HTTP-only session cookie
@@ -73,7 +73,7 @@ business,contact,email,phone,address
 
 ## Implementation roadmap
 
-### Phase 1 — Approved pro-forma MVP (current branch)
+### Phase 1 — Approved estimate MVP (current branch)
 
 - Validate the end-to-end workflow and role handoffs
 - Use representative source products and browser-based CSV parsing
@@ -91,7 +91,7 @@ business,contact,email,phone,address
 
 ### Phase 3 — Operational launch
 
-- Generate branded pro-forma and invoice PDFs with revision and void/reissue controls
+- Generate branded estimate and invoice PDFs with revision and void/reissue controls
 - Add import rollback, error reports, customer-specific price lists, taxes, discounts, and payment terms
 - Add distribution pick/pack views, partial dispatch, backorders, and payment status
 - Add observability, automated tests, backups, security review, and data retention controls
@@ -105,16 +105,16 @@ business,contact,email,phone,address
 
 ## Product decisions
 
-- Customers never see prices in the initial catalog; pricing first appears in the pro-forma.
+- Customers never see prices in the initial catalog; pricing first appears in the estimate.
 - Submitting a request does not reserve stock or confirm a sale.
 - SKU is the stable import and integration key.
-- Pro-formas and final invoices are frozen snapshots with separate number sequences.
+- Estimates and final invoices are frozen snapshots with separate number sequences.
 - Final invoices are created only after dispatch and cannot be silently overwritten.
 - Distribution sees only approved work and the fulfillment information it needs.
 
 ## Production data model
 
-Core records: users, customers, products, catalog publications, imports, order requests, order lines, pro-formas, pro-forma revisions, approvals, dispatches, invoices, document files, notifications, and immutable activity events.
+Core records: users, customers, products, catalog publications, imports, order requests, order lines, estimates, estimate revisions, approvals, dispatches, invoices, document files, notifications, and immutable activity events.
 
 ## Source materials
 
