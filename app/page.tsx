@@ -131,7 +131,7 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (!salesUser) return;
-    fetch("/api/products").then((response) => response.ok ? response.json() : null).then((data) => { if (Array.isArray(data?.products)) setProducts(data.products); }).catch(() => undefined);
+    fetch("/api/products").then((response) => response.ok ? response.json() : null).then((data) => { if (Array.isArray(data?.products) && data.products.length) setProducts(data.products); }).catch(() => undefined);
     fetch("/api/customers").then((response) => response.ok ? response.json() : null).then((data) => { if (data?.customers?.length) setCustomers(data.customers); }).catch(() => undefined);
   }, [salesUser]);
 
