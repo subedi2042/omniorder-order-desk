@@ -25,7 +25,7 @@ export async function PUT(request: Request) {
     if (!sql) throw new Error("DATABASE_URL is not configured");
     const existing = (await sql`SELECT id,code_expires_at AS "codeExpiresAt" FROM customers WHERE id=${customer.id} AND access_code=${normalized} LIMIT 1`)[0];
     if (!existing || !existing.codeExpiresAt || new Date(String(existing.codeExpiresAt)).getTime() <= Date.now()) return Response.json({ error: "Invalid or expired code" }, { status: 401 });
-    await sql`UPDATE customers SET business=${customer.business},contact=${customer.contact},email=${customer.email},phone=${customer.phone},address=${customer.address},updated_at=NOW() WHERE id=${customer.id}`;
+    await sql`UPDATE customers SET business=${customer.business},contact=${customer.contact},email=${customer.email},phone=${customer.phone},address=${customer.address},updated_at=${Date.now()} WHERE id=${customer.id}`;
     return Response.json({ customer: { ...customer, accessCode: normalized, codeExpiresAt: existing.codeExpiresAt } });
   } catch (error) { console.error("Customer update failed", error); return Response.json({ error: "Customer update unavailable" }, { status: 503 }); }
 }

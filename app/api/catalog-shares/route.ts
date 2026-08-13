@@ -47,7 +47,7 @@ export async function PUT(request: Request) {
     if (!share || share.customerId !== String(customer.id)) return Response.json({ error: "Invalid or expired secure link" }, { status: 401 });
     const business=String(customer.business||"").trim(),contact=String(customer.contact||"").trim(),email=String(customer.email||"").trim(),phone=String(customer.phone||"").trim(),address=String(customer.address||"").trim();
     if (!business || !contact || !email || !phone || !address) return Response.json({ error: "Complete customer details required" }, { status: 400 });
-    await sql`UPDATE customers SET business=${business},contact=${contact},email=${email},phone=${phone},address=${address},updated_at=NOW() WHERE id=${String(customer.id)}`;
+    await sql`UPDATE customers SET business=${business},contact=${contact},email=${email},phone=${phone},address=${address},updated_at=${Date.now()} WHERE id=${String(customer.id)}`;
     return Response.json({ saved: true });
   } catch (error) { console.error("Shared customer update failed", error); return Response.json({ error: "Customer update unavailable" }, { status: 503 }); }
 }
