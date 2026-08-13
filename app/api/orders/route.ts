@@ -3,6 +3,11 @@ import { postgres } from "../../../db/postgres";
 
 async function ensureTable(sql: NonNullable<ReturnType<typeof postgres>>) {
   await sql`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY,customer_id TEXT NOT NULL,customer_snapshot JSONB NOT NULL,items JSONB NOT NULL,status TEXT NOT NULL DEFAULT 'request',source_token TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_lines JSONB NOT NULL DEFAULT '[]'::jsonb`;
+  await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_percent NUMERIC NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_amount NUMERIC NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tax_percent NUMERIC NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS quote_notes TEXT NOT NULL DEFAULT ''`;
 }
 
 export async function GET(request: Request) {
@@ -11,8 +16,8 @@ export async function GET(request: Request) {
     const sql = postgres();
     if (!sql) throw new Error("DATABASE_URL is not configured");
     await ensureTable(sql);
-    const orders = await sql`SELECT id,customer_id AS "customerId",customer_snapshot AS customer,items,status,created_at AS "createdAt",updated_at AS "updatedAt" FROM orders ORDER BY created_at DESC`;
-    return Response.json({ orders });
+    const orders = await sql`SELECT id,customer_id AS "customerId",customer_snapshot AS customer,items,status,quote_lines AS "quoteLines",discount_percent AS "discountPercent",shipping_amount AS "shippingAmount",tax_percent AS "taxPercent",quote_notes AS "quoteNotes",created_at AS "createdAt",updated_at AS "updatedAt" FROM orders ORDER BY created_at DESC`;
+    return Response.json({ orders: orders.map((order: any) => ({ ...order, discountPercent: Number(order.discountPercent), shippingAmount: Number(order.shippingAmount), taxPercent: Number(order.taxPercent) })) });
   } catch (error) { console.error("Order load failed", error); return Response.json({ error: "Orders unavailable" }, { status: 503 }); }
 }
 
@@ -43,7 +48,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   const user = await requireSalesUser(request);
-  const { id, status, token } = await request.json() as { id?: string; status?: string; token?: string };
+  const { id, status, token, quoteLines, discountPercent, shippingAmount, taxPercent, quoteNotes } = await request.json() as { id?: string; status?: string; token?: string; quoteLines?: Array<{ sku: string; quantity: number; unitPrice: number }>; discountPercent?: number; shippingAmount?: number; taxPercent?: number; quoteNotes?: string };
   if (!id || !["request", "proforma", "approved"].includes(String(status))) return Response.json({ error: "Order and valid status required" }, { status: 400 });
   try {
     const sql = postgres();
@@ -51,7 +56,8 @@ export async function PUT(request: Request) {
     await ensureTable(sql);
     const order = (await sql`SELECT source_token AS "sourceToken" FROM orders WHERE id=${id} LIMIT 1`)[0];
     if (!order || (!user && (!token || token !== order.sourceToken))) return Response.json({ error: "Unauthorized" }, { status: 401 });
-    await sql`UPDATE orders SET status=${status},updated_at=NOW() WHERE id=${id}`;
+    if (quoteLines) await sql`UPDATE orders SET status=${status},quote_lines=${JSON.stringify(quoteLines)},discount_percent=${Math.max(0, Number(discountPercent) || 0)},shipping_amount=${Math.max(0, Number(shippingAmount) || 0)},tax_percent=${Math.max(0, Number(taxPercent) || 0)},quote_notes=${String(quoteNotes || "")},updated_at=NOW() WHERE id=${id}`;
+    else await sql`UPDATE orders SET status=${status},updated_at=NOW() WHERE id=${id}`;
     return Response.json({ id, status });
   } catch (error) { console.error("Order status update failed", error); return Response.json({ error: "Order status could not be saved" }, { status: 503 }); }
 }
