@@ -251,7 +251,15 @@ export default function Home() {
   };
   const salesViews: View[] = ["home", "products", "create-list", "orders", "documents", "customers", "settings"];
   const go = (next: View) => {
-    if (salesViews.includes(next) && salesUser) {
+    if (salesViews.includes(next) && !salesUser) {
+      setView("landing");
+      setReviewOpen(false);
+      setSignInOpen(true);
+      history.replaceState({}, "", location.pathname);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (salesViews.includes(next)) {
       history.replaceState({}, "", location.pathname);
       fetch("/api/products").then((response) => response.ok ? response.json() : null).then((data) => {
         if (Array.isArray(data?.products)) setProducts(data.products);
