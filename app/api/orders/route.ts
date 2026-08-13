@@ -40,8 +40,10 @@ export async function POST(request: Request) {
       authorized = Boolean(customer);
     }
     if (!authorized) return Response.json({ error: "Invalid or expired customer access" }, { status: 401 });
-    const id = `OR-${new Date().getUTCFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    await sql`INSERT INTO orders (id,customer_id,customer_snapshot,items,status,source_token) VALUES (${id},${customerId},${JSON.stringify(body.customer)},${JSON.stringify(items)},'request',${body.token || null})`;
+    const existing = body.token ? (await sql`SELECT id FROM orders WHERE source_token=${body.token} LIMIT 1`)[0] : null;
+    const id = existing?.id || `OR-${new Date().getUTCFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    if (existing) await sql`UPDATE orders SET customer_snapshot=${JSON.stringify(body.customer)},items=${JSON.stringify(items)},status='request',updated_at=NOW() WHERE id=${id}`;
+    else await sql`INSERT INTO orders (id,customer_id,customer_snapshot,items,status,source_token) VALUES (${id},${customerId},${JSON.stringify(body.customer)},${JSON.stringify(items)},'request',${body.token || null})`;
     return Response.json({ order: { id, customerId, customer: body.customer, items, status: "request", createdAt: new Date().toISOString() } });
   } catch (error) { console.error("Order save failed", error); return Response.json({ error: "Order could not be saved" }, { status: 503 }); }
 }

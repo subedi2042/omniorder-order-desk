@@ -17,7 +17,12 @@ export async function POST(request: Request) {
     const token = `dk_${crypto.randomUUID()}`;
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     await sql`INSERT INTO catalog_shares (token,customer_id,skus,quantities,expires_at) VALUES (${token},${customerId},${JSON.stringify(skus)},${JSON.stringify(quantities || {})},${expiresAt})`;
-    return Response.json({ token, expiresAt });
+    await sql`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY,customer_id TEXT NOT NULL,customer_snapshot JSONB NOT NULL,items JSONB NOT NULL,status TEXT NOT NULL DEFAULT 'request',source_token TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+    const customer = (await sql`SELECT id,business,contact,email,phone,address FROM customers WHERE id=${customerId} LIMIT 1`)[0];
+    const orderId = `OR-${new Date().getUTCFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const items = skus.map((sku) => ({ sku, quantity: Math.max(1, Math.floor(Number(quantities?.[sku]) || 1)) }));
+    await sql`INSERT INTO orders (id,customer_id,customer_snapshot,items,status,source_token) VALUES (${orderId},${customerId},${JSON.stringify(customer || { id: customerId })},${JSON.stringify(items)},'request',${token})`;
+    return Response.json({ token, expiresAt, orderId, selectedCount: items.length });
   } catch (error) { console.error("Catalog share creation failed", error); return Response.json({ error: "Secure link could not be created" }, { status: 503 }); }
 }
 
