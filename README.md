@@ -69,7 +69,7 @@ sku,name,category,pack,stock,price
 
 Re-importing an existing SKU updates that item rather than creating a duplicate.
 
-Product and inventory imports accept CSV or text-based PDF files. PDF extraction recognizes rows containing SKU, description, stock, and price; CSV is the reliable fallback for scanned or unusually formatted PDFs. Downloadable blank templates are available in the application and at `/templates/desi-kitchen-product-list.csv`, `/templates/desi-kitchen-inventory.csv`, and `/templates/desi-kitchen-customers.csv`.
+Products and inventory use one combined CSV import. The blank template at `/templates/desi-kitchen-product-list.csv` contains editable product, price, stock, and publication fields without exposing wholesale catalog data in the public repository. Uploads are saved to the backend, and a row whose SKU already exists replaces that product with the newly uploaded values. Customer imports use `/templates/desi-kitchen-customers.csv`.
 
 Customer CSV header:
 
