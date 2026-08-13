@@ -16,6 +16,13 @@ const seedCustomers: CustomerRecord[] = [];
 
 const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 const parseCsvRow = (row: string) => { const values: string[] = []; let value = ""; let quoted = false; for (let index = 0; index < row.length; index++) { const character = row[index]; if (character === '"' && quoted && row[index + 1] === '"') { value += '"'; index++; } else if (character === '"') quoted = !quoted; else if (character === "," && !quoted) { values.push(value.trim()); value = ""; } else value += character; } values.push(value.trim()); return values; };
+const compareSkuAscending = (first: Product, second: Product) => {
+  const firstSku = first.sku.trim();
+  const secondSku = second.sku.trim();
+  const firstNumber = /^\d+$/.test(firstSku) ? Number(firstSku) : Number.POSITIVE_INFINITY;
+  const secondNumber = /^\d+$/.test(secondSku) ? Number(secondSku) : Number.POSITIVE_INFINITY;
+  return firstNumber - secondNumber || firstSku.localeCompare(secondSku);
+};
 
 function invoiceLines(products: Product[], cart: Cart) {
   return products.filter((product) => (cart[product.sku] || 0) > 0).map((product) => ({ ...product, quantity: cart[product.sku] }));
@@ -160,7 +167,7 @@ export default function Home() {
   const filtered = products.filter((p) => {
     const matchQuery = `${p.sku} ${p.name}`.toLowerCase().includes(query.toLowerCase());
     return matchQuery && (category === "All products" || p.category === category);
-  }).sort((first, second) => first.sku.localeCompare(second.sku, undefined, { numeric: true }));
+  }).sort(compareSkuAscending);
   const subtotal = cartItems.reduce((sum, p) => sum + p.price * cart[p.sku], 0);
   const shipping = subtotal ? 24 : 0;
   const tax = subtotal * 0.0825;

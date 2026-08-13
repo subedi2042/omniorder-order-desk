@@ -12,7 +12,7 @@ function database() {
 export async function GET(request: Request) {
   if (!await requireSalesUser(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const results = await database()`SELECT sku,name,category,pack,price_cents,stock,published FROM products ORDER BY name`;
+    const results = await database()`SELECT sku,name,category,pack,price_cents,stock,published FROM products ORDER BY CASE WHEN BTRIM(sku) ~ '^[0-9]+$' THEN BTRIM(sku)::numeric END NULLS LAST, BTRIM(sku)`;
     return Response.json({ products: results.map((product: any) => ({ ...product, price: Number(product.price_cents) / 100, stock: Number(product.stock), published: Boolean(product.published) })) });
   } catch (error) { console.error("Product load failed", error); return Response.json({ error: "Catalog storage unavailable" }, { status: 503 }); }
 }
