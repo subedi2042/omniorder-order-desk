@@ -153,6 +153,7 @@ export default function Home() {
   const [customerSignInOpen, setCustomerSignInOpen] = useState(false);
   const [targetedList, setTargetedList] = useState(false);
   const [targetSkus, setTargetSkus] = useState<string[]>([]);
+  const [targetQuantities, setTargetQuantities] = useState<Cart>({});
   const [changeRequest, setChangeRequest] = useState("");
   const [quoteLines, setQuoteLines] = useState<QuoteLine[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -187,6 +188,7 @@ export default function Home() {
         if (!response.ok) throw new Error(data.error || "Secure catalog unavailable");
         setProducts((data.products || []).map((product: CustomerProduct) => ({ ...product, price: 0 })));
         setTargetSkus((data.products || []).map((product: CustomerProduct) => product.sku));
+        setCart(data.initialQuantities || {});
         if (data.customer) setOrderCustomer(data.customer);
       }).catch(() => notify("This secure catalog link is invalid or expired"));
     }
@@ -271,7 +273,7 @@ export default function Home() {
         <header className="mobile-header"><button className="brand" onClick={() => go("home")}><img className="brand-logo" src="/desi-kitchen-logo.png" alt="Desi Kitchen logo"/><span className="company-name">Desi Kitchen</span></button><button className="icon-button" onClick={() => go("catalog")}>Catalog</button></header>
         {view === "home" && <Dashboard orderCreated={orderCreated} savedOrderCount={savedOrderCount} stage={stage} products={products} salesUser={salesUser} go={go} notify={notify} />}
         {view === "products" && <Products products={products} setProducts={setProducts} filtered={filtered} query={query} setQuery={setQuery} categories={categories} category={category} setCategory={setCategory} setEditing={setEditing} importCatalog={importCatalog} notify={notify} go={go} />}
-        {view === "create-list" && <SalesOrderListBuilder products={products.filter((p) => p.published)} customers={customers} selectedCustomerId={selectedCustomerId} setSelectedCustomerId={setSelectedCustomerId} selected={targetSkus} setSelected={setTargetSkus} onPrerequisite={(next) => go(next)} onSend={(customer) => { setOrderCustomer(customer); setTargetedList(true); }} notify={notify} />}
+        {view === "create-list" && <SalesOrderListBuilder products={products.filter((p) => p.published)} customers={customers} selectedCustomerId={selectedCustomerId} setSelectedCustomerId={setSelectedCustomerId} selected={targetSkus} setSelected={setTargetSkus} quantities={targetQuantities} setQuantities={setTargetQuantities} onPrerequisite={(next) => go(next)} onSend={(customer) => { setOrderCustomer(customer); setTargetedList(true); }} notify={notify} />}
         {view === "orders" && (orderCreated ? <Orders orderCreated={orderCreated} stage={stage} setStage={setStage} products={products} cart={cart} quoteLines={quoteLines} setQuoteLines={setQuoteLines} discountPercent={discountPercent} setDiscountPercent={setDiscountPercent} shippingAmount={shippingAmount} setShippingAmount={setShippingAmount} taxPercent={taxPercent} setTaxPercent={setTaxPercent} quoteNotes={quoteNotes} setQuoteNotes={setQuoteNotes} changeRequest={changeRequest} setChangeRequest={setChangeRequest} go={go} notify={notify} /> : <EmptyState title="No orders yet" description="Customer requests will appear here after a secure catalog link is submitted." action="Create an order list" onAction={() => go("create-list")} />)}
         {view === "documents" && (orderCreated ? <Documents stage={stage} setStage={setStage} products={products} cart={cart} quoteLines={quoteLines} discountPercent={discountPercent} shippingAmount={shippingAmount} taxPercent={taxPercent} quoteNotes={quoteNotes} customer={orderCustomer} go={go} notify={notify} /> : <EmptyState title="No estimates yet" description="Create an estimate after a customer submits an order request." action="View orders" onAction={() => go("orders")} />)}
         {view === "customers" && <Customers customers={customers} setCustomers={setCustomers} notify={notify} />}
@@ -386,7 +388,7 @@ function Dashboard({ orderCreated, savedOrderCount, stage, products, salesUser, 
 function Metric({ tone, value, label, meta }: { tone: string; value: string; label: string; meta: string }) { return <div className="metric"><span className={`metric-icon ${tone}`}>●</span><div><strong>{value}</strong><p>{label}</p><small>{meta}</small></div></div>; }
 function OrderRow({ initials, customer, number, details, status, fresh, onClick }: { initials: string; customer: string; number: string; details: string; status: string; fresh?: boolean; onClick: () => void }) { return <button className={`order-row ${fresh ? "fresh" : ""}`} onClick={onClick}><span className="avatar pale">{initials}</span><span className="order-info"><strong>{customer}</strong><small>{number} · {details}</small></span><span className={`badge ${status.toLowerCase()}`}>{status}</span><span>›</span></button>; }
 
-function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSelectedCustomerId, selected, setSelected, onPrerequisite, onSend, notify }: { products: Product[]; customers: CustomerRecord[]; selectedCustomerId: string; setSelectedCustomerId: (id: string) => void; selected: string[]; setSelected: (s: string[]) => void; onPrerequisite: (view: "customers" | "products") => void; onSend: (customer: CustomerRecord) => void; notify: (s: string) => void }) {
+function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSelectedCustomerId, selected, setSelected, quantities, setQuantities, onPrerequisite, onSend, notify }: { products: Product[]; customers: CustomerRecord[]; selectedCustomerId: string; setSelectedCustomerId: (id: string) => void; selected: string[]; setSelected: (s: string[]) => void; quantities: Cart; setQuantities: (quantities: Cart) => void; onPrerequisite: (view: "customers" | "products") => void; onSend: (customer: CustomerRecord) => void; notify: (s: string) => void }) {
   const [search, setSearch] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -395,13 +397,18 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   const [draftCustomerName, setDraftCustomerName] = useState("");
   const customer = customers.find((record) => record.id === selectedCustomerId) || customers[0];
   const visible = products.filter((p) => `${p.sku} ${p.name}`.toLowerCase().includes(search.toLowerCase()));
-  const toggle = (sku: string) => setSelected(selected.includes(sku) ? selected.filter((s) => s !== sku) : [...selected, sku]);
+  const toggle = (sku: string) => {
+    if (selected.includes(sku)) { setSelected(selected.filter((s) => s !== sku)); const next = { ...quantities }; delete next[sku]; setQuantities(next); }
+    else { setSelected([...selected, sku]); setQuantities({ ...quantities, [sku]: quantities[sku] || 1 }); }
+  };
+  const setInitialQuantity = (sku: string, quantity: number) => setQuantities({ ...quantities, [sku]: Math.max(1, Math.floor(quantity || 1)) });
   useEffect(() => {
     fetch("/api/order-list-drafts").then(async (response) => {
       const data = await response.json();
       if (response.ok && data.draft) {
         setSelectedCustomerId(data.draft.customerId);
         setSelected(Array.isArray(data.draft.skus) ? data.draft.skus : []);
+        setQuantities(data.draft.quantities || {});
         setDraftSavedAt(data.draft.updatedAt || "");
         setDraftCustomerName(data.draft.customerName || "Saved customer");
       }
@@ -410,7 +417,7 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   useEffect(() => {
     if (!draftReady || !customer) return;
     const timeout = window.setTimeout(async () => {
-      const response = await fetch("/api/order-list-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId: customer.id, skus: selected }) });
+      const response = await fetch("/api/order-list-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId: customer.id, skus: selected, quantities }) });
       if (response.ok) {
         const data = await response.json();
         setDraftSavedAt(data.updatedAt || new Date().toISOString());
@@ -418,12 +425,12 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
       }
     }, 500);
     return () => window.clearTimeout(timeout);
-  }, [draftReady, customer?.id, selected.join("|")]);
+  }, [draftReady, customer?.id, selected.join("|"), JSON.stringify(quantities)]);
   const generateLink = async () => {
     if (!customer || !selected.length || generating) return;
     setGenerating(true);
     try {
-      const response = await fetch("/api/catalog-shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId: customer.id, skus: selected }) });
+      const response = await fetch("/api/catalog-shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId: customer.id, skus: selected, quantities }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Secure link could not be created");
       const link = `${location.origin}/?token=${encodeURIComponent(data.token)}`;
@@ -439,7 +446,7 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   return <div className="page">
     <div className="page-head"><div><p className="eyebrow">Sales initiated order</p><h1>Create a customer order list</h1><p>Choose the customer and products, then send a secure quantity-request link.</p>{draftSavedAt && <small className="draft-status">Draft saved for <b>{draftCustomerName}</b> · {selected.length} products · {new Date(draftSavedAt).toLocaleString()}</small>}</div><span className="badge approved">{draftSavedAt ? "Draft saved" : "New draft"}</span></div>
     <div className="builder-grid"><section className="panel builder-main"><div className="builder-section"><span className="builder-number">1</span><div><h2>Choose customer</h2><p>Search uploaded customers by business, contact, or email.</p></div></div><div className="customer-choice"><span className="avatar pale">{customer?.business.slice(0,2).toUpperCase()}</span><span><b>{customer?.business}</b><small>{customer?.contact} · {customer?.email}</small></span><select aria-label="Select customer" value={selectedCustomerId} onChange={(event) => setSelectedCustomerId(event.target.value)}>{customers.map((record) => <option key={record.id} value={record.id}>{record.business} — {record.contact}</option>)}</select></div>
-      <div className="builder-section"><span className="builder-number">2</span><div><h2>Select products</h2><p>Customers will see only these published products, without prices.</p></div></div><div className="search builder-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or SKU" /></div><div className="builder-products">{visible.map((p) => <label className="builder-product" key={p.sku}><input type="checkbox" checked={selected.includes(p.sku)} onChange={() => toggle(p.sku)} /><span><b>{p.name}</b><small>{p.sku} · {p.pack} · {p.stock < 20 ? "Low stock" : "In stock"}</small></span></label>)}</div>
+      <div className="builder-section"><span className="builder-number">2</span><div><h2>Select products and starting quantities</h2><p>Customers will see these products without prices and may edit every quantity before submitting.</p></div></div><div className="search builder-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or SKU" /></div><div className="builder-products">{visible.map((p) => <div className="builder-product" key={p.sku}><input aria-label={`Select ${p.name}`} type="checkbox" checked={selected.includes(p.sku)} onChange={() => toggle(p.sku)} /><span><b>{p.name}</b><small>{p.sku} · {p.pack} · {p.stock < 20 ? "Low stock" : "In stock"}</small></span>{selected.includes(p.sku) && <label className="builder-quantity">Starting qty<input aria-label={`Starting quantity for ${p.name}`} type="number" min="1" max={Math.max(1, p.stock)} value={quantities[p.sku] || 1} onChange={(event) => setInitialQuantity(p.sku, Number(event.target.value))} /></label>}</div>)}</div>
     </section><aside className="panel builder-summary"><p className="eyebrow">Link summary</p><h2>{customer?.business}</h2><dl><dt>Products included</dt><dd>{selected.length}</dd><dt>Prices visible</dt><dd>No</dd><dt>Assigned rep</dt><dd>Signed-in sales representative</dd><dt>Expires</dt><dd>24 hours</dd></dl><div className="notice"><b>Customer action</b><br/>Enter quantities and send the completed request back to sales.</div><button className="button primary wide" disabled={!selected.length || generating} onClick={generateLink}>{generating ? "Generating secure site…" : "Generate secure customer site →"}</button>{generatedLink && <div className="generated-link"><label>Customer site<input readOnly value={generatedLink} onFocus={(event) => event.currentTarget.select()} /></label><button className="button primary wide" onClick={copyLink}>Copy link</button><button className="button secondary wide" onClick={() => window.open(generatedLink, "_blank", "noopener,noreferrer")}>Open customer site ↗</button><small>This private link expires after 24 hours.</small></div>}</aside></div>
   </div>;
 }
