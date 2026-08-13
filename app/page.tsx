@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Product = { sku: string; name: string; category: string; pack: string; price: number; stock: number; published: boolean };
 type CustomerRecord = { id: string; business: string; contact: string; email: string; phone: string; address: string; accessCode?: string; codeExpiresAt?: string; shareToken?: string };
@@ -60,50 +60,27 @@ async function createProformaPdf(products: Product[], cart: Cart, quoteLines: Qu
   const text = (value: string, x: number, y: number, size = 10, bold = false, color = "0.05 0.09 0.08") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm (${escapePdf(value)}) Tj ET`;
   const rule = (x1: number, y1: number, x2: number, y2: number, width = .7, color = ".82 .83 .80") => `${color} RG ${width} w ${x1} ${y1} m ${x2} ${y2} l S`;
   const fill = (x: number, y: number, width: number, height: number, color: string) => `${color} rg ${x} ${y} ${width} ${height} re f`;
-  const commands = [
-    "q 58 0 0 58 36 697 cm /Logo Do Q",
-    `BT /F3 18 Tf 0 .25 .18 rg 1 0 0 1 108 731 Tm (${escapePdf("Desi Kitchen")}) Tj ET`,
-    text("Paramount,", 36, 682, 11, false, ".32 .38 .48"), text("California", 36, 665, 11, false, ".32 .38 .48"),
-    fill(approved ? 504 : 462, 735, approved ? 72 : 114, 20, approved ? ".90 .96 .93" : "1 .94 .84"),
-    text(approved ? "APPROVED" : "AWAITING APPROVAL", approved ? 515 : 471, 742, 8, true, approved ? "0 .31 .26" : ".55 .28 0"),
-    `BT /F3 25 Tf 0 .25 .18 rg 1 0 0 1 430 704 Tm (${escapePdf("ESTIMATE")}) Tj ET`, text("Customer estimate", 468, 684, 10, false, ".32 .38 .48"),
-    rule(36, 638, 576, 638, 1.2, ".05 .09 .08"),
-    text("BILL TO", 36, 605, 9, true, ".35 .40 .38"), text(customer?.business || "Customer on order request", 36, 581, 13, true),
-    text(customer?.contact || "Contact supplied with secure order", 36, 561, 11), text((customer?.address || customer?.email || "Delivery details supplied with order").slice(0, 48), 36, 545, 9),
-    text("DOCUMENT DETAILS", 315, 605, 9, true, ".35 .40 .38"), text("Issued when sent by sales", 315, 573, 11),
-    text("Validity and terms set by sales", 315, 555, 11),
-    text("ITEM", 48, 505, 8, true, ".35 .40 .38"), text("QTY", 294, 505, 8, true, ".35 .40 .38"),
-    text("UNIT PRICE", 435, 505, 8, true, ".35 .40 .38"), text("TOTAL", 530, 505, 8, true, ".35 .40 .38"), rule(36, 491, 576, 491),
-  ];
-  let rowY = 466;
-  lines.slice(0, 7).forEach((line) => {
-    commands.push(text(line.name, 48, rowY, 9, true), text(`${line.sku} - ${line.pack}`, 48, rowY - 14, 8, false, ".35 .40 .38"));
-    commands.push(text(String(line.quantity), 294, rowY - 2, 10), text(money(line.unitPrice), 435, rowY - 2, 10), text(money(line.unitPrice * line.quantity), 530, rowY - 2, 10));
-    commands.push(rule(36, rowY - 27, 576, rowY - 27));
-    rowY -= 48;
+  const linePages = Array.from({ length: Math.max(1, Math.ceil(lines.length / 6)) }, (_, page) => lines.slice(page * 6, page * 6 + 6));
+  const pageContents = linePages.map((pageLines, pageIndex) => {
+    const commands = ["q 58 0 0 58 36 697 cm /Logo Do Q", `BT /F3 18 Tf 0 .25 .18 rg 1 0 0 1 108 731 Tm (${escapePdf("Desi Kitchen")}) Tj ET`, text("Paramount, California", 36, 674, 10, false, ".32 .38 .48"), fill(approved ? 504 : 462, 735, approved ? 72 : 114, 20, approved ? ".90 .96 .93" : "1 .94 .84"), text(approved ? "APPROVED" : "AWAITING APPROVAL", approved ? 515 : 471, 742, 8, true, approved ? "0 .31 .26" : ".55 .28 0"), `BT /F3 25 Tf 0 .25 .18 rg 1 0 0 1 430 704 Tm (${escapePdf("ESTIMATE")}) Tj ET`, text(`Page ${pageIndex + 1} of ${linePages.length}`, 500, 676, 8, false, ".32 .38 .48"), rule(36, 638, 576, 638, 1.2, ".05 .09 .08"), text("BILL TO", 36, 605, 9, true, ".35 .40 .38"), text(customer?.business || "Customer on order request", 36, 581, 13, true), text(customer?.contact || "Contact supplied with secure order", 36, 561, 10), text("ITEM", 48, 520, 8, true, ".35 .40 .38"), text("QTY", 294, 520, 8, true, ".35 .40 .38"), text("UNIT PRICE", 435, 520, 8, true, ".35 .40 .38"), text("TOTAL", 530, 520, 8, true, ".35 .40 .38"), rule(36, 506, 576, 506)];
+    let rowY = 480;
+    pageLines.forEach((line) => { commands.push(text(line.name.slice(0, 45), 48, rowY, 9, true), text(`${line.sku} - ${line.pack}`, 48, rowY - 14, 8, false, ".35 .40 .38"), text(String(line.quantity), 294, rowY - 2, 10), text(money(line.unitPrice), 435, rowY - 2, 10), text(money(line.unitPrice * line.quantity), 530, rowY - 2, 10), rule(36, rowY - 27, 576, rowY - 27)); rowY -= 48; });
+    if (pageIndex === linePages.length - 1) commands.push(text("Subtotal", 390, 174, 10), text(money(subtotal), 530, 174, 10, true), ...(discountPercent > 0 ? [text(`Discount (${discountPercent}%)`, 390, 154, 10), text(`-${money(discount)}`, 530, 154, 10, true)] : []), text("Shipping", 390, 134, 10), text(money(shipping), 530, 134, 10, true), text(`Tax (${taxPercent}%)`, 390, 114, 10), text(money(tax), 530, 114, 10, true), rule(390, 101, 576, 101, 1.1, ".05 .09 .08"), text("Total", 390, 76, 15, true), text(money(total), 520, 76, 15, true));
+    commands.push(rule(36, 55, 576, 55), text(approved ? "Approved estimate. Pricing and quantities were accepted by the customer." : "Awaiting customer approval. This estimate is not yet approved.", 36, 36, 8, false, ".35 .40 .38"), text(quoteNotes ? `Sales note: ${quoteNotes.slice(0, 78)}` : "Desi Kitchen sales | sales@desikitchen.me | (562) 470-7400", 36, 22, 8, false, ".35 .40 .38"));
+    return commands.join("\n");
   });
-  const totalsY = Math.max(126, rowY - 8);
-  commands.push(
-    text("Subtotal", 390, totalsY, 10), text(money(subtotal), 530, totalsY, 10, true),
-    ...(discountPercent > 0 ? [text(`Discount (${discountPercent}%)`, 390, totalsY - 20, 10), text(`-${money(discount)}`, 530, totalsY - 20, 10, true)] : []),
-    text("Shipping", 390, totalsY - 40, 10), text(money(shipping), 530, totalsY - 40, 10, true),
-    text(`Tax (${taxPercent}%)`, 390, totalsY - 60, 10), text(money(tax), 530, totalsY - 60, 10, true),
-    rule(390, totalsY - 73, 576, totalsY - 73, 1.1, ".05 .09 .08"),
-    text("Total", 390, totalsY - 98, 15, true), text(money(total), 520, totalsY - 98, 15, true),
-    rule(36, 55, 576, 55), text(approved ? "Approved estimate. Pricing and quantities were accepted by the customer." : "Preview only. Customer approval is required before this estimate is accepted.", 36, 36, 8, false, ".35 .40 .38"),
-    text(quoteNotes ? `Sales note: ${quoteNotes.slice(0, 78)}` : "Desi Kitchen sales | sales@desikitchen.me | (562) 470-7400", 36, 22, 8, false, ".35 .40 .38"),
-  );
-  const content = commands.join("\n");
   const encoder = new TextEncoder();
   const logoBytes = new Uint8Array(await fetch("/desi-kitchen-logo-pdf.jpg").then((response) => {
     if (!response.ok) throw new Error("Could not load the Desi Kitchen PDF logo");
     return response.arrayBuffer();
   }));
+  const fontOne = 3 + pageContents.length * 2, fontTwo = fontOne + 1, fontThree = fontOne + 2, logoObject = fontOne + 3;
+  const pageObjects: Uint8Array[] = [];
+  pageContents.forEach((content, index) => { const pageObject = 3 + index * 2, contentObject = pageObject + 1; pageObjects.push(encoder.encode(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontOne} 0 R /F2 ${fontTwo} 0 R /F3 ${fontThree} 0 R >> /XObject << /Logo ${logoObject} 0 R >> >> /Contents ${contentObject} 0 R >>`), encoder.encode(`<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`)); });
   const objectBodies: Uint8Array[] = [
     encoder.encode("<< /Type /Catalog /Pages 2 0 R >>"),
-    encoder.encode("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
-    encoder.encode("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 7 0 R >> /XObject << /Logo 8 0 R >> >> /Contents 4 0 R >>"),
-    encoder.encode(`<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`),
+    encoder.encode(`<< /Type /Pages /Kids [${pageContents.map((_, index) => `${3 + index * 2} 0 R`).join(" ")}] /Count ${pageContents.length} >>`),
+    ...pageObjects,
     encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
     encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"),
     encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>"),
@@ -487,9 +464,11 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   const [draftReady, setDraftReady] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState("");
   const [draftCustomerName, setDraftCustomerName] = useState("");
+  const selectionTouched = useRef(false);
   const customer = customers.find((record) => record.id === selectedCustomerId) || customers[0];
   const visible = products.filter((p) => `${p.sku} ${p.name}`.toLowerCase().includes(search.toLowerCase()));
   const toggle = (sku: string) => {
+    selectionTouched.current = true;
     if (selected.includes(sku)) { setSelected(selected.filter((s) => s !== sku)); const next = { ...quantities }; delete next[sku]; setQuantities(next); }
     else { setSelected([...selected, sku]); setQuantities({ ...quantities, [sku]: quantities[sku] || 1 }); }
   };
@@ -497,7 +476,7 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   useEffect(() => {
     fetch("/api/order-list-drafts").then(async (response) => {
       const data = await response.json();
-      if (response.ok && data.draft) {
+      if (response.ok && data.draft && !selectionTouched.current) {
         setSelectedCustomerId(data.draft.customerId);
         setSelected(Array.isArray(data.draft.skus) ? data.draft.skus : []);
         setQuantities(data.draft.quantities || {});
@@ -533,12 +512,14 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
     } catch { notify("Secure link could not be created. Please try again."); }
     finally { setGenerating(false); }
   };
+  const selectAllVisible = () => { selectionTouched.current = true; const all = Array.from(new Set([...selected, ...visible.map((product) => product.sku)])); setSelected(all); setQuantities(Object.fromEntries(all.map((sku) => [sku, quantities[sku] || 1]))); };
+  const clearSelection = () => { selectionTouched.current = true; setSelected([]); setQuantities({}); setGeneratedLink(""); };
   const copyLink = async () => { await navigator.clipboard?.writeText(generatedLink); notify("Secure customer link copied"); };
   if (!customers.length || !products.length) return <EmptyState title="Complete setup before sharing a catalog" description={!customers.length && !products.length ? "Upload a customer list and product inventory before creating an order link." : !customers.length ? "Upload at least one customer before creating an order link." : "Publish at least one in-stock product before creating an order link."} action={!customers.length ? "Upload customers" : "Upload inventory"} onAction={() => onPrerequisite(!customers.length ? "customers" : "products")} />;
   return <div className="page">
     <div className="page-head"><div><p className="eyebrow">Sales initiated order</p><h1>Create a customer order list</h1><p>Choose the customer and products, then send a secure quantity-request link.</p>{draftSavedAt && <small className="draft-status">Draft saved for <b>{draftCustomerName}</b> · {selected.length} products · {new Date(draftSavedAt).toLocaleString()}</small>}</div><span className="badge approved">{draftSavedAt ? "Draft saved" : "New draft"}</span></div>
     <div className="builder-grid"><section className="panel builder-main"><div className="builder-section"><span className="builder-number">1</span><div><h2>Choose customer</h2><p>Search uploaded customers by business, contact, or email.</p></div></div><div className="customer-choice"><span className="avatar pale">{customer?.business.slice(0,2).toUpperCase()}</span><span><b>{customer?.business}</b><small>{customer?.contact} · {customer?.email}</small></span><select aria-label="Select customer" value={selectedCustomerId} onChange={(event) => setSelectedCustomerId(event.target.value)}>{customers.map((record) => <option key={record.id} value={record.id}>{record.business} — {record.contact}</option>)}</select></div>
-      <div className="builder-section"><span className="builder-number">2</span><div><h2>Select products and starting quantities</h2><p>Customers will see these products without prices and may edit every quantity before submitting.</p></div></div><div className="search builder-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or SKU" /></div><div className="builder-products">{visible.map((p) => <div className="builder-product" key={p.sku}><input aria-label={`Select ${p.name}`} type="checkbox" checked={selected.includes(p.sku)} onChange={() => toggle(p.sku)} /><span><b>{p.name}</b><small>{p.sku} · {p.pack} · {p.stock < 20 ? "Low stock" : "In stock"}</small></span>{selected.includes(p.sku) && <label className="builder-quantity">Starting qty<input aria-label={`Starting quantity for ${p.name}`} type="number" min="1" max={Math.max(1, p.stock)} value={quantities[p.sku] || 1} onChange={(event) => setInitialQuantity(p.sku, Number(event.target.value))} /></label>}</div>)}</div>
+      <div className="builder-section"><span className="builder-number">2</span><div><h2>Select products and starting quantities</h2><p>Customers will see these products without prices and may edit every quantity before submitting.</p></div></div><div className="search builder-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or SKU" /></div><div className="actions builder-bulk-actions"><button className="button secondary" onClick={selectAllVisible}>Select all {visible.length} matching products</button><button className="button secondary" disabled={!selected.length} onClick={clearSelection}>Clear selection</button><strong>{selected.length} selected</strong></div><div className="builder-products">{visible.map((p) => <div className="builder-product" key={p.sku}><input aria-label={`Select ${p.name}`} type="checkbox" checked={selected.includes(p.sku)} onChange={() => toggle(p.sku)} /><span><b>{p.name}</b><small>{p.sku} · {p.pack} · {p.stock < 20 ? "Low stock" : "In stock"}</small></span>{selected.includes(p.sku) && <label className="builder-quantity">Starting qty<input aria-label={`Starting quantity for ${p.name}`} type="number" min="1" max={Math.max(1, p.stock)} value={quantities[p.sku] || 1} onChange={(event) => setInitialQuantity(p.sku, Number(event.target.value))} /></label>}</div>)}</div>
     </section><aside className="panel builder-summary"><p className="eyebrow">Link summary</p><h2>{customer?.business}</h2><dl><dt>Products included</dt><dd>{selected.length}</dd><dt>Prices visible</dt><dd>No</dd><dt>Assigned rep</dt><dd>Signed-in sales representative</dd><dt>Expires</dt><dd>24 hours</dd></dl><div className="notice"><b>Customer action</b><br/>Enter quantities and send the completed request back to sales.</div><button className="button primary wide" disabled={!selected.length || generating} onClick={generateLink}>{generating ? "Generating secure site…" : "Generate secure customer site →"}</button>{generatedLink && <div className="generated-link"><label>Customer site<input readOnly value={generatedLink} onFocus={(event) => event.currentTarget.select()} /></label><button className="button primary wide" onClick={copyLink}>Copy link</button><button className="button secondary wide" onClick={() => window.open(generatedLink, "_blank", "noopener,noreferrer")}>Open customer site ↗</button><small>This private link expires after 24 hours.</small></div>}</aside></div>
   </div>;
 }
