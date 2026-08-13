@@ -8,6 +8,7 @@ type CustomerProduct = Omit<Product, "price">;
 type Cart = Record<string, number>;
 type QuoteLine = { sku: string; quantity: number; unitPrice: number };
 type SalesUser = { sub: string; email: string; name: string; picture?: string };
+type SavedOrder = { id: string; customerId: string; customer: CustomerRecord; items: Array<{ sku: string; quantity: number }>; status: "request" | "proforma" | "approved"; createdAt: string; updatedAt: string };
 type Stage = "request" | "proforma" | "approved" | "dispatched" | "invoiced";
 type View = "landing" | "privacy" | "support" | "fast-quote" | "home" | "products" | "create-list" | "orders" | "documents" | "customers" | "settings" | "catalog";
 
@@ -146,6 +147,8 @@ export default function Home() {
   const [stage, setStage] = useState<Stage>("request");
   const [orderCreated, setOrderCreated] = useState(false);
   const [savedOrderCount, setSavedOrderCount] = useState(0);
+  const [savedOrders, setSavedOrders] = useState<SavedOrder[]>([]);
+  const [currentOrderId, setCurrentOrderId] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [toast, setToast] = useState("");
@@ -168,6 +171,17 @@ export default function Home() {
   useEffect(() => {
     if (orderCustomer) sessionStorage.setItem("desi-kitchen-order-customer", JSON.stringify(orderCustomer));
   }, [orderCustomer]);
+
+  useEffect(() => {
+    if (!currentOrderId) return;
+    const existing = savedOrders.find((order) => order.id === currentOrderId);
+    if (existing?.status === stage) return;
+    fetch("/api/orders", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: currentOrderId, status: stage, token: orderCustomer?.shareToken }) }).then((response) => {
+      if (!response.ok) throw new Error("Status save failed");
+      setSavedOrders((orders) => orders.map((order) => order.id === currentOrderId ? { ...order, status: stage as SavedOrder["status"], updatedAt: new Date().toISOString() } : order));
+      setSavedOrderCount((count) => stage === "request" ? count : Math.max(0, count - (existing?.status === "request" ? 1 : 0)));
+    }).catch(() => notify("Order status could not be saved"));
+  }, [stage, currentOrderId]);
 
   useEffect(() => {
     const updateCustomer = (event: Event) => setOrderCustomer((event as CustomEvent<CustomerRecord>).detail);
@@ -200,10 +214,12 @@ export default function Home() {
     fetch("/api/customers").then((response) => response.ok ? response.json() : null).then((data) => { if (data?.customers?.length) setCustomers(data.customers); }).catch(() => undefined);
     fetch("/api/orders").then((response) => response.ok ? response.json() : null).then((data) => {
       const orders = Array.isArray(data?.orders) ? data.orders : [];
+      setSavedOrders(orders);
       setSavedOrderCount(orders.filter((order: any) => order.status === "request").length);
       const latest = orders[0];
       if (!latest) return;
       setOrderCreated(true);
+      setCurrentOrderId(latest.id);
       setStage(latest.status === "approved" ? "approved" : latest.status === "proforma" ? "proforma" : "request");
       setOrderCustomer(latest.customer || null);
       setCart(Object.fromEntries((latest.items || []).map((item: { sku: string; quantity: number }) => [item.sku, item.quantity])));
@@ -226,6 +242,13 @@ export default function Home() {
   const customerCartItems: CustomerProduct[] = cartItems.map(({ price: _privatePrice, ...product }) => product);
 
   const setQty = (sku: string, qty: number) => setCart((current) => ({ ...current, [sku]: Math.max(0, qty) }));
+  const openSavedOrder = (order: SavedOrder) => { setCurrentOrderId(order.id); setOrderCreated(true); setStage(order.status); setOrderCustomer(order.customer); setCart(Object.fromEntries(order.items.map((item) => [item.sku, item.quantity]))); setQuoteLines([]); go("orders"); };
+  const saveOrderStatus = async (status: SavedOrder["status"]) => {
+    if (!currentOrderId) return false;
+    const response = await fetch("/api/orders", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: currentOrderId, status, token: orderCustomer?.shareToken }) });
+    if (!response.ok) { notify("Order status could not be saved"); return false; }
+    setStage(status); setSavedOrders((orders) => orders.map((order) => order.id === currentOrderId ? { ...order, status, updatedAt: new Date().toISOString() } : order)); setSavedOrderCount((count) => status === "request" ? count : Math.max(0, count - (savedOrders.find((order) => order.id === currentOrderId)?.status === "request" ? 1 : 0))); return true;
+  };
   const salesViews: View[] = ["home", "products", "create-list", "orders", "documents", "customers", "settings"];
   const go = (next: View) => {
     if (salesViews.includes(next) && salesUser) {
@@ -280,7 +303,7 @@ export default function Home() {
       </aside>
       <main className="admin-main">
         <header className="mobile-header"><button className="brand" onClick={() => go("home")}><img className="brand-logo" src="/desi-kitchen-logo.png" alt="Desi Kitchen logo"/><span className="company-name">Desi Kitchen</span></button><button className="icon-button" onClick={() => go("catalog")}>Catalog</button></header>
-        {view === "home" && <Dashboard orderCreated={orderCreated} savedOrderCount={savedOrderCount} stage={stage} products={products} salesUser={salesUser} go={go} notify={notify} />}
+        {view === "home" && <Dashboard orderCreated={orderCreated} savedOrderCount={savedOrderCount} savedOrders={savedOrders} openSavedOrder={openSavedOrder} stage={stage} products={products} salesUser={salesUser} go={go} notify={notify} />}
         {view === "products" && <Products products={products} setProducts={setProducts} filtered={filtered} query={query} setQuery={setQuery} categories={categories} category={category} setCategory={setCategory} setEditing={setEditing} importCatalog={importCatalog} notify={notify} go={go} />}
         {view === "create-list" && <SalesOrderListBuilder products={products.filter((p) => p.published)} customers={customers} selectedCustomerId={selectedCustomerId} setSelectedCustomerId={setSelectedCustomerId} selected={targetSkus} setSelected={setTargetSkus} quantities={targetQuantities} setQuantities={setTargetQuantities} onPrerequisite={(next) => go(next)} onSend={(customer) => { setOrderCustomer(customer); setTargetedList(true); }} notify={notify} />}
         {view === "orders" && (orderCreated ? <Orders orderCreated={orderCreated} stage={stage} setStage={setStage} products={products} cart={cart} quoteLines={quoteLines} setQuoteLines={setQuoteLines} discountPercent={discountPercent} setDiscountPercent={setDiscountPercent} shippingAmount={shippingAmount} setShippingAmount={setShippingAmount} taxPercent={taxPercent} setTaxPercent={setTaxPercent} quoteNotes={quoteNotes} setQuoteNotes={setQuoteNotes} changeRequest={changeRequest} setChangeRequest={setChangeRequest} go={go} notify={notify} /> : <EmptyState title="No orders yet" description="Customer requests will appear here after a secure catalog link is submitted." action="Create an order list" onAction={() => go("create-list")} />)}
@@ -373,19 +396,19 @@ function Nav({ label, icon, active, badge, onClick }: { label: string; icon: str
   return <button className={`nav-item ${active ? "active" : ""}`} onClick={onClick}><span className="nav-icon">{icon}</span><span>{label}</span>{badge && <span className="nav-badge">{badge}</span>}</button>;
 }
 
-function Dashboard({ orderCreated, savedOrderCount, stage, products, salesUser, go, notify }: { orderCreated: boolean; savedOrderCount: number; stage: Stage; products: Product[]; salesUser: SalesUser | null; go: (v: View) => void; notify: (s: string) => void }) {
+function Dashboard({ savedOrderCount, savedOrders, openSavedOrder, products, salesUser, go }: { orderCreated: boolean; savedOrderCount: number; savedOrders: SavedOrder[]; openSavedOrder: (order: SavedOrder) => void; stage: Stage; products: Product[]; salesUser: SalesUser | null; go: (v: View) => void; notify: (s: string) => void }) {
   const firstName = salesUser?.name?.split(" ")[0] || "Sales team";
   return <div className="page dashboard-page">
     <div className="page-head"><div><p className="eyebrow">Sales workspace</p><h1>Welcome, {firstName}</h1><p>Your workspace is ready for live catalog and customer data.</p></div><div className="actions"><button className="button secondary" onClick={() => go("create-list")}>＋ Create order list</button><button className="button primary" onClick={() => go("products")}>＋ Upload inventory</button></div></div>
     <div className="metric-grid">
       <Metric tone="green" value={String(savedOrderCount)} label="New requests" meta="Customer submissions" />
-      <Metric tone="amber" value={stage === "proforma" ? "1" : "0"} label="Awaiting approval" meta="Estimates sent" />
-      <Metric tone="blue" value={stage === "approved" ? "1" : "0"} label="Approved" meta="Accepted estimates" />
+      <Metric tone="amber" value={String(savedOrders.filter((order) => order.status === "proforma").length)} label="Awaiting approval" meta="Estimates sent" />
+      <Metric tone="blue" value={String(savedOrders.filter((order) => order.status === "approved").length)} label="Approved" meta="Accepted estimates" />
       <Metric tone="red" value={String(products.filter((product) => product.stock < 20).length)} label="Low-stock products" meta="Uploaded inventory" />
     </div>
     <div className="dashboard-grid">
       <section className="panel recent"><div className="panel-head"><div><h2>Recent order requests</h2><p>Latest activity from your customers</p></div><button className="text-button" onClick={() => go("orders")}>View all →</button></div>
-        {orderCreated ? <OrderRow initials="CU" customer="Customer order" number="New request" details="Current session" status={stage === "request" ? "New" : stage === "proforma" ? "Quoted" : stage === "approved" ? "Approved" : "Processing"} fresh onClick={() => go("orders")} /> : <div className="empty inline-empty"><h2>No order requests</h2><p>Send a secure catalog link after uploading customers and products.</p></div>}
+        {savedOrders.length ? savedOrders.slice(0, 8).map((order) => <OrderRow key={order.id} initials={(order.customer?.business || "CU").slice(0,2).toUpperCase()} customer={order.customer?.business || "Customer order"} number={order.id} details={`${order.items.length} products · ${new Date(order.createdAt).toLocaleString()}`} status={order.status === "request" ? "New" : order.status === "proforma" ? "Quoted" : "Approved"} fresh={order.status === "request"} onClick={() => openSavedOrder(order)} />) : <div className="empty inline-empty"><h2>No order requests</h2><p>Send a secure catalog link after uploading customers and products.</p></div>}
       </section>
       <section className="panel workflow-card"><div className="panel-head"><div><h2>Current MVP workflow</h2><p>From request to approved PDF</p></div></div>
         {["Customer request", "Sales review", "Approved estimate PDF"].map((label, i) => <div className="workflow-step" key={label}><span>{i + 1}</span><div><strong>{label}</strong><small>{["Quantities, no pricing", "Confirm stock and price", "Customer accepts and downloads"][i]}</small></div></div>)}
@@ -475,7 +498,7 @@ function Products({ products, setProducts, filtered, query, setQuery, categories
   </div>;
 }
 
-function Orders({ orderCreated, stage, setStage, products, cart, quoteLines, setQuoteLines, discountPercent, setDiscountPercent, shippingAmount, setShippingAmount, taxPercent, setTaxPercent, quoteNotes, setQuoteNotes, changeRequest, setChangeRequest, go, notify }: { orderCreated: boolean; stage: Stage; setStage: (s: Stage) => void; products: Product[]; cart: Cart; quoteLines: QuoteLine[]; setQuoteLines: (lines: QuoteLine[]) => void; discountPercent: number; setDiscountPercent: (n: number) => void; shippingAmount: number; setShippingAmount: (n: number) => void; taxPercent: number; setTaxPercent: (n: number) => void; quoteNotes: string; setQuoteNotes: (s: string) => void; changeRequest: string; setChangeRequest: (s: string) => void; go: (v: View) => void; notify: (s: string) => void }) {
+function Orders({ orderCreated, stage, setStage, saveOrderStatus, products, cart, quoteLines, setQuoteLines, discountPercent, setDiscountPercent, shippingAmount, setShippingAmount, taxPercent, setTaxPercent, quoteNotes, setQuoteNotes, changeRequest, setChangeRequest, go, notify }: { orderCreated: boolean; stage: Stage; setStage: (s: Stage) => void; saveOrderStatus?: (status: SavedOrder["status"]) => Promise<boolean>; products: Product[]; cart: Cart; quoteLines: QuoteLine[]; setQuoteLines: (lines: QuoteLine[]) => void; discountPercent: number; setDiscountPercent: (n: number) => void; shippingAmount: number; setShippingAmount: (n: number) => void; taxPercent: number; setTaxPercent: (n: number) => void; quoteNotes: string; setQuoteNotes: (s: string) => void; changeRequest: string; setChangeRequest: (s: string) => void; go: (v: View) => void; notify: (s: string) => void }) {
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   const [itemSearch, setItemSearch] = useState("");
   const [itemSku, setItemSku] = useState("");

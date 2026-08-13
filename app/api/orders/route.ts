@@ -40,3 +40,18 @@ export async function POST(request: Request) {
     return Response.json({ order: { id, customerId, customer: body.customer, items, status: "request", createdAt: new Date().toISOString() } });
   } catch (error) { console.error("Order save failed", error); return Response.json({ error: "Order could not be saved" }, { status: 503 }); }
 }
+
+export async function PUT(request: Request) {
+  const user = await requireSalesUser(request);
+  const { id, status, token } = await request.json() as { id?: string; status?: string; token?: string };
+  if (!id || !["request", "proforma", "approved"].includes(String(status))) return Response.json({ error: "Order and valid status required" }, { status: 400 });
+  try {
+    const sql = postgres();
+    if (!sql) throw new Error("DATABASE_URL is not configured");
+    await ensureTable(sql);
+    const order = (await sql`SELECT source_token AS "sourceToken" FROM orders WHERE id=${id} LIMIT 1`)[0];
+    if (!order || (!user && (!token || token !== order.sourceToken))) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    await sql`UPDATE orders SET status=${status},updated_at=NOW() WHERE id=${id}`;
+    return Response.json({ id, status });
+  } catch (error) { console.error("Order status update failed", error); return Response.json({ error: "Order status could not be saved" }, { status: 503 }); }
+}
