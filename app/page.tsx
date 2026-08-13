@@ -10,7 +10,7 @@ type QuoteLine = { sku: string; quantity: number; unitPrice: number };
 type SalesUser = { sub: string; email: string; name: string; picture?: string };
 type SavedOrder = { id: string; customerId: string; customer: CustomerRecord; items: Array<{ sku: string; quantity: number }>; status: "request" | "proforma" | "approved"; quoteLines?: QuoteLine[]; discountPercent?: number; shippingAmount?: number; taxPercent?: number; quoteNotes?: string; createdAt: string; updatedAt: string };
 type Stage = "request" | "proforma" | "approved" | "dispatched" | "invoiced";
-type View = "landing" | "privacy" | "support" | "fast-quote" | "home" | "products" | "create-list" | "orders" | "documents" | "customers" | "settings" | "catalog";
+type View = "landing" | "privacy" | "support" | "fast-quote" | "home" | "products" | "create-list" | "orders" | "order-detail" | "documents" | "customers" | "settings" | "catalog";
 
 const seedProducts: Product[] = [];
 const seedCustomers: CustomerRecord[] = [];
@@ -247,14 +247,14 @@ export default function Home() {
   const customerCartItems: CustomerProduct[] = cartItems.map(({ price: _privatePrice, ...product }) => product);
 
   const setQty = (sku: string, qty: number) => setCart((current) => ({ ...current, [sku]: Math.max(0, qty) }));
-  const openSavedOrder = (order: SavedOrder) => { setCurrentOrderId(order.id); setOrderCreated(true); setStage(order.status); setOrderCustomer(order.customer); setCart(Object.fromEntries(order.items.map((item) => [item.sku, item.quantity]))); setQuoteLines(order.quoteLines || []); setDiscountPercent(order.discountPercent || 0); setShippingAmount(order.shippingAmount || 0); setTaxPercent(order.taxPercent || 0); setQuoteNotes(order.quoteNotes || ""); go(order.status === "approved" ? "documents" : "orders"); };
+  const openSavedOrder = (order: SavedOrder) => { setCurrentOrderId(order.id); setOrderCreated(true); setStage(order.status); setOrderCustomer(order.customer); setCart(Object.fromEntries(order.items.map((item) => [item.sku, item.quantity]))); setQuoteLines(order.quoteLines || []); setDiscountPercent(order.discountPercent || 0); setShippingAmount(order.shippingAmount || 0); setTaxPercent(order.taxPercent || 0); setQuoteNotes(order.quoteNotes || ""); go(order.status === "approved" ? "documents" : "order-detail"); };
   const saveOrderStatus = async (status: SavedOrder["status"], estimate?: { quoteLines: QuoteLine[]; discountPercent: number; shippingAmount: number; taxPercent: number; quoteNotes: string }) => {
     if (!currentOrderId) return false;
     const response = await fetch("/api/orders", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: currentOrderId, status, token: orderCustomer?.shareToken, ...estimate }) });
     if (!response.ok) { notify("Order status could not be saved"); return false; }
     setStage(status); setSavedOrders((orders) => orders.map((order) => order.id === currentOrderId ? { ...order, ...estimate, status, updatedAt: new Date().toISOString() } : order)); setSavedOrderCount((count) => status === "request" ? count : Math.max(0, count - (savedOrders.find((order) => order.id === currentOrderId)?.status === "request" ? 1 : 0))); return true;
   };
-  const salesViews: View[] = ["home", "products", "create-list", "orders", "documents", "customers", "settings"];
+  const salesViews: View[] = ["home", "products", "create-list", "orders", "order-detail", "documents", "customers", "settings"];
   const go = (next: View) => {
     if (salesViews.includes(next) && !salesUser) {
       setView("landing");
@@ -308,7 +308,7 @@ export default function Home() {
         <nav>
           <Nav label="Overview" icon="⌂" active={view === "home"} onClick={() => go("home")} />
           <Nav label="Products" icon="◇" active={view === "products"} onClick={() => go("products")} />
-          <Nav label="Orders" icon="▤" badge={orderCreated ? "1" : undefined} active={view === "orders"} onClick={() => go("orders")} />
+          <Nav label="Orders" icon="▤" badge={savedOrderCount ? String(savedOrderCount) : undefined} active={view === "orders" || view === "order-detail"} onClick={() => go("orders")} />
           <Nav label="Estimates" icon="▧" active={view === "documents"} onClick={() => go("documents")} />
           <Nav label="Customers" icon="♧" active={view === "customers"} onClick={() => go("customers")} />
         </nav>
@@ -322,7 +322,8 @@ export default function Home() {
         {view === "home" && <Dashboard orderCreated={orderCreated} savedOrderCount={savedOrderCount} savedOrders={savedOrders} openSavedOrder={openSavedOrder} stage={stage} products={products} salesUser={salesUser} go={go} notify={notify} />}
         {view === "products" && <Products products={products} setProducts={setProducts} filtered={filtered} query={query} setQuery={setQuery} categories={categories} category={category} setCategory={setCategory} setEditing={setEditing} importCatalog={importCatalog} notify={notify} go={go} />}
         {view === "create-list" && <SalesOrderListBuilder products={products.filter((p) => p.published)} customers={customers} selectedCustomerId={selectedCustomerId} setSelectedCustomerId={setSelectedCustomerId} selected={targetSkus} setSelected={setTargetSkus} quantities={targetQuantities} setQuantities={setTargetQuantities} onPrerequisite={(next) => go(next)} onSend={(customer) => { setOrderCustomer(customer); setTargetedList(true); }} notify={notify} />}
-        {view === "orders" && (orderCreated ? <Orders orderCreated={orderCreated} stage={stage} setStage={setStage} saveOrderStatus={saveOrderStatus} products={products} cart={cart} quoteLines={quoteLines} setQuoteLines={setQuoteLines} discountPercent={discountPercent} setDiscountPercent={setDiscountPercent} shippingAmount={shippingAmount} setShippingAmount={setShippingAmount} taxPercent={taxPercent} setTaxPercent={setTaxPercent} quoteNotes={quoteNotes} setQuoteNotes={setQuoteNotes} changeRequest={changeRequest} setChangeRequest={setChangeRequest} go={go} notify={notify} /> : <EmptyState title="No orders yet" description="Customer requests will appear here after a secure catalog link is submitted." action="Create an order list" onAction={() => go("create-list")} />)}
+        {view === "orders" && <OrdersInbox orders={savedOrders} openOrder={openSavedOrder} go={go}/>}
+        {view === "order-detail" && (orderCreated && stage !== "approved" ? <Orders orderCreated={orderCreated} stage={stage} setStage={setStage} saveOrderStatus={saveOrderStatus} products={products} cart={cart} quoteLines={quoteLines} setQuoteLines={setQuoteLines} discountPercent={discountPercent} setDiscountPercent={setDiscountPercent} shippingAmount={shippingAmount} setShippingAmount={setShippingAmount} taxPercent={taxPercent} setTaxPercent={setTaxPercent} quoteNotes={quoteNotes} setQuoteNotes={setQuoteNotes} changeRequest={changeRequest} setChangeRequest={setChangeRequest} go={go} notify={notify} /> : <EmptyState title="This estimate is already approved" description="Approved estimates can only be viewed as the accepted document." action="Open approved estimate" onAction={() => go("documents")} />)}
         {view === "documents" && (orderCreated ? <Documents stage={stage} setStage={setStage} products={products} cart={cart} quoteLines={quoteLines} discountPercent={discountPercent} shippingAmount={shippingAmount} taxPercent={taxPercent} quoteNotes={quoteNotes} customer={orderCustomer} go={go} notify={notify} /> : <EmptyState title="No estimates yet" description="Create an estimate after a customer submits an order request." action="View orders" onAction={() => go("orders")} />)}
         {view === "customers" && <Customers customers={customers} setCustomers={setCustomers} notify={notify} />}
         {view === "settings" && <Settings notify={notify} />}
@@ -456,6 +457,10 @@ function Dashboard({ savedOrderCount, savedOrders, openSavedOrder, products, sal
 
 function Metric({ tone, value, label, meta }: { tone: string; value: string; label: string; meta: string }) { return <div className="metric"><span className={`metric-icon ${tone}`}>●</span><div><strong>{value}</strong><p>{label}</p><small>{meta}</small></div></div>; }
 function OrderRow({ initials, customer, number, details, status, fresh, onClick }: { initials: string; customer: string; number: string; details: string; status: string; fresh?: boolean; onClick: () => void }) { return <button className={`order-row ${fresh ? "fresh" : ""}`} onClick={onClick}><span className="avatar pale">{initials}</span><span className="order-info"><strong>{customer}</strong><small>{number} · {details}</small></span><span className={`badge ${status.toLowerCase()}`}>{status}</span><span>›</span></button>; }
+
+function OrdersInbox({ orders, openOrder, go }: { orders: SavedOrder[]; openOrder: (order: SavedOrder) => void; go: (view: View) => void }) {
+  return <div className="page"><div className="page-head"><div><p className="eyebrow">Orders</p><h1>Order requests</h1><p>Open a submitted request to build its estimate. Approved records open as locked documents.</p></div><button className="button primary" onClick={() => go("create-list")}>＋ Create order list</button></div><section className="panel recent"><div className="panel-head"><div><h2>All submitted requests</h2><p>Sales drafts remain in Create Order until a customer submits them.</p></div></div>{orders.length ? orders.map((order) => <OrderRow key={order.id} initials={(order.customer?.business || "CU").slice(0, 2).toUpperCase()} customer={order.customer?.business || "Customer order"} number={order.id} details={`${order.items.length} products · ${new Date(order.updatedAt || order.createdAt).toLocaleString()}`} status={order.status === "request" ? "New" : order.status === "proforma" ? "Quoted" : "Approved"} fresh={order.status === "request"} onClick={() => openOrder(order)}/>) : <div className="empty inline-empty"><h2>No submitted orders</h2><p>Customer submissions will appear here. Unsent sales order lists remain saved as drafts.</p><button className="button secondary" onClick={() => go("create-list")}>Create an order list</button></div>}</section></div>;
+}
 
 function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSelectedCustomerId, selected, setSelected, quantities, setQuantities, onPrerequisite, onSend, notify }: { products: Product[]; customers: CustomerRecord[]; selectedCustomerId: string; setSelectedCustomerId: (id: string) => void; selected: string[]; setSelected: (s: string[]) => void; quantities: Cart; setQuantities: (quantities: Cart) => void; onPrerequisite: (view: "customers" | "products") => void; onSend: (customer: CustomerRecord) => void; notify: (s: string) => void }) {
   const [search, setSearch] = useState("");
