@@ -160,7 +160,7 @@ export default function Home() {
   const filtered = products.filter((p) => {
     const matchQuery = `${p.sku} ${p.name}`.toLowerCase().includes(query.toLowerCase());
     return matchQuery && (category === "All products" || p.category === category);
-  });
+  }).sort((first, second) => first.sku.localeCompare(second.sku, undefined, { numeric: true }));
   const subtotal = cartItems.reduce((sum, p) => sum + p.price * cart[p.sku], 0);
   const shipping = subtotal ? 24 : 0;
   const tax = subtotal * 0.0825;
