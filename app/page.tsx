@@ -226,7 +226,16 @@ export default function Home() {
   const customerCartItems: CustomerProduct[] = cartItems.map(({ price: _privatePrice, ...product }) => product);
 
   const setQty = (sku: string, qty: number) => setCart((current) => ({ ...current, [sku]: Math.max(0, qty) }));
-  const go = (next: View) => { setView(next); setReviewOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const salesViews: View[] = ["home", "products", "create-list", "orders", "documents", "customers", "settings"];
+  const go = (next: View) => {
+    if (salesViews.includes(next) && salesUser) {
+      history.replaceState({}, "", location.pathname);
+      fetch("/api/products").then((response) => response.ok ? response.json() : null).then((data) => {
+        if (Array.isArray(data?.products)) setProducts(data.products);
+      }).catch(() => notify("The full sales catalog could not be refreshed"));
+    }
+    setView(next); setReviewOpen(false); window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const importCatalog = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
