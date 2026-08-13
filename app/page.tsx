@@ -393,6 +393,7 @@ function Landing({ customers, onSales, onCustomer, onPrivacy, onSupport, onFastQ
 
 function GoogleSalesSignIn({ onSignedIn }: { onSignedIn: (user: SalesUser) => void }) {
   const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
   useEffect(() => {
     if (!clientId) return;
@@ -401,11 +402,14 @@ function GoogleSalesSignIn({ onSignedIn }: { onSignedIn: (user: SalesUser) => vo
       const element = document.getElementById("google-sales-signin");
       if (!google || !element) return;
       google.accounts.id.initialize({ client_id: clientId, callback: async ({ credential }) => {
-        setError("");
-        const response = await fetch("/api/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential }) });
-        const data = await response.json();
-        if (!response.ok || !data.user) { setError(data.error || "Google sign-in failed."); return; }
-        onSignedIn(data.user);
+        setError(""); setVerifying(true);
+        try {
+          const response = await fetch("/api/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential }), signal: AbortSignal.timeout(15000) });
+          const data = await response.json();
+          if (!response.ok || !data.user) { setError(data.error || "Google sign-in failed. You can use email and password instead."); return; }
+          onSignedIn(data.user);
+        } catch { setError("Google sign-in timed out. Refresh and try once more, or use email and password."); }
+        finally { setVerifying(false); }
       } });
       element.replaceChildren();
       google.accounts.id.renderButton(element, { theme: "outline", size: "large", shape: "rectangular", text: "signin_with", width: "330" });
@@ -421,7 +425,7 @@ function GoogleSalesSignIn({ onSignedIn }: { onSignedIn: (user: SalesUser) => vo
     document.head.appendChild(script);
   }, [clientId, onSignedIn]);
   if (!clientId) return <div className="google-auth-area"><button className="google-button-fallback" disabled title="A Google Web Client ID must be configured first"><span className="google-g">G</span><b>Sign in with Google</b></button><div className="google-auth-setup"><b>Administrator setup required</b><span>The Google button is ready, but a Google Web Client ID must be connected before it can open authentication.</span></div></div>;
-  return <><div id="google-sales-signin" className="google-signin-button" aria-label="Sign in with Google" />{error && <p className="form-error">{error}</p>}</>;
+  return <><div id="google-sales-signin" className="google-signin-button" aria-label="Sign in with Google" />{verifying && <p className="google-verifying" role="status">Verifying Google account…</p>}{error && <p className="form-error">{error}</p>}</>;
 }
 
 function PasswordSalesSignIn({ onSignedIn }: { onSignedIn: (user: SalesUser) => void }) {

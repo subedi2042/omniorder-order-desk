@@ -49,3 +49,11 @@ test("new customer orders reset selections while estimate drafts persist", async
   assert.match(pageSource, /saveOrderStatus\?\.\("request", \{ quoteLines: draftLines/);
   assert.match(draftRoute, /PRIMARY KEY \(sales_sub,customer_id\)/);
 });
+
+test("Google sign-in cannot spin indefinitely", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const authSource = await readFile(new URL("../app/api/auth/google/route.ts", import.meta.url), "utf8");
+  assert.match(pageSource, /AbortSignal\.timeout\(15000\)/);
+  assert.match(pageSource, /Google sign-in timed out/);
+  assert.match(authSource, /AbortSignal\.timeout\(10000\)/);
+});

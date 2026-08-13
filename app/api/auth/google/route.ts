@@ -24,7 +24,7 @@ async function verifyGoogleCredential(credential: string, clientId: string): Pro
   const header = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[0]))) as { alg?: string; kid?: string };
   const claims = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[1]))) as GoogleClaims;
   if (header.alg !== "RS256" || !header.kid) throw new Error("Unsupported Google credential");
-  const response = await fetch("https://www.googleapis.com/oauth2/v3/certs");
+  const response = await fetch("https://www.googleapis.com/oauth2/v3/certs", { signal: AbortSignal.timeout(10000) });
   if (!response.ok) throw new Error("Google signing keys are unavailable");
   const { keys } = await response.json() as { keys: JsonWebKey[] };
   const jwk = keys.find((key) => key.kid === header.kid);
@@ -73,7 +73,8 @@ export async function POST(request: Request) {
     const session = await createSession(claims, secret);
     const user = { sub: claims.sub, email: claims.email, name: claims.name || claims.email, picture: claims.picture || "" };
     return Response.json({ user }, { headers: { "Set-Cookie": `omniorder_sales_session=${session}; HttpOnly; Path=/; SameSite=Lax; Max-Age=28800${process.env.NODE_ENV === "production" ? "; Secure" : ""}` } });
-  } catch {
+  } catch (error) {
+    console.error("Google sign-in verification failed", error);
     return Response.json({ error: "Google sign-in could not be verified." }, { status: 401 });
   }
 }
