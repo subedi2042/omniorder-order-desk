@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { paginateEstimateLines } from "../lib/estimate-pagination.ts";
@@ -24,4 +25,16 @@ test("preserves every product across all boundary sizes through 500 lines", () =
     assert.ok(pages.at(-1).length > 0 || count === 0, `totals-only page at ${count}`);
     assert.ok(pages.at(-1).length <= (pages.length === 1 ? 20 : 32), `last page overflow at ${count}`);
   }
+});
+
+test("every estimate workflow uses the shared adaptive PDF generator", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.doesNotMatch(pageSource, /Math\.ceil\([^\n]*\.length\s*\/\s*6\)/);
+  assert.match(pageSource, /const linePages = paginateEstimateLines\(lines\)/);
+  assert.match(pageSource, /downloadAwaitingApprovalEstimatePdf\(estimateProducts, estimateCart/);
+  assert.match(pageSource, /const downloadAwaitingApproval = \(\) => \{ downloadAwaitingApprovalEstimatePdf\(/);
+  assert.match(pageSource, /const download = \(\) => \{ downloadApprovedProformaPdf\(/);
+  assert.match(pageSource, /createProformaPdf\(products, cart, quoteLines,[\s\S]*false, customer\)/);
+  assert.match(pageSource, /createProformaPdf\(products, cart, quoteLines,[\s\S]*true, customer\)/);
 });
