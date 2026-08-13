@@ -145,6 +145,7 @@ export default function Home() {
   const [category, setCategory] = useState("All products");
   const [stage, setStage] = useState<Stage>("request");
   const [orderCreated, setOrderCreated] = useState(false);
+  const [savedOrderCount, setSavedOrderCount] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [toast, setToast] = useState("");
@@ -169,8 +170,10 @@ export default function Home() {
 
   useEffect(() => {
     const updateCustomer = (event: Event) => setOrderCustomer((event as CustomEvent<CustomerRecord>).detail);
+    const recordOrder = () => setSavedOrderCount((count) => count + 1);
     window.addEventListener("order-customer-updated", updateCustomer);
-    return () => window.removeEventListener("order-customer-updated", updateCustomer);
+    window.addEventListener("order-submitted", recordOrder);
+    return () => { window.removeEventListener("order-customer-updated", updateCustomer); window.removeEventListener("order-submitted", recordOrder); };
   }, []);
 
   useEffect(() => {
@@ -193,6 +196,16 @@ export default function Home() {
     if (!salesUser) return;
     fetch("/api/products").then((response) => response.ok ? response.json() : null).then((data) => { if (Array.isArray(data?.products) && data.products.length) setProducts(data.products); }).catch(() => undefined);
     fetch("/api/customers").then((response) => response.ok ? response.json() : null).then((data) => { if (data?.customers?.length) setCustomers(data.customers); }).catch(() => undefined);
+    fetch("/api/orders").then((response) => response.ok ? response.json() : null).then((data) => {
+      const orders = Array.isArray(data?.orders) ? data.orders : [];
+      setSavedOrderCount(orders.filter((order: any) => order.status === "request").length);
+      const latest = orders[0];
+      if (!latest) return;
+      setOrderCreated(true);
+      setStage(latest.status === "approved" ? "approved" : latest.status === "proforma" ? "proforma" : "request");
+      setOrderCustomer(latest.customer || null);
+      setCart(Object.fromEntries((latest.items || []).map((item: { sku: string; quantity: number }) => [item.sku, item.quantity])));
+    }).catch(() => undefined);
   }, [salesUser]);
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 2600); };
@@ -256,7 +269,7 @@ export default function Home() {
       </aside>
       <main className="admin-main">
         <header className="mobile-header"><button className="brand" onClick={() => go("home")}><img className="brand-logo" src="/desi-kitchen-logo.png" alt="Desi Kitchen logo"/><span className="company-name">Desi Kitchen</span></button><button className="icon-button" onClick={() => go("catalog")}>Catalog</button></header>
-        {view === "home" && <Dashboard orderCreated={orderCreated} stage={stage} products={products} salesUser={salesUser} go={go} notify={notify} />}
+        {view === "home" && <Dashboard orderCreated={orderCreated} savedOrderCount={savedOrderCount} stage={stage} products={products} salesUser={salesUser} go={go} notify={notify} />}
         {view === "products" && <Products products={products} setProducts={setProducts} filtered={filtered} query={query} setQuery={setQuery} categories={categories} category={category} setCategory={setCategory} setEditing={setEditing} importCatalog={importCatalog} notify={notify} go={go} />}
         {view === "create-list" && <SalesOrderListBuilder products={products.filter((p) => p.published)} customers={customers} selectedCustomerId={selectedCustomerId} setSelectedCustomerId={setSelectedCustomerId} selected={targetSkus} setSelected={setTargetSkus} onPrerequisite={(next) => go(next)} onSend={(customer) => { setOrderCustomer(customer); setTargetedList(true); }} notify={notify} />}
         {view === "orders" && (orderCreated ? <Orders orderCreated={orderCreated} stage={stage} setStage={setStage} products={products} cart={cart} quoteLines={quoteLines} setQuoteLines={setQuoteLines} discountPercent={discountPercent} setDiscountPercent={setDiscountPercent} shippingAmount={shippingAmount} setShippingAmount={setShippingAmount} taxPercent={taxPercent} setTaxPercent={setTaxPercent} quoteNotes={quoteNotes} setQuoteNotes={setQuoteNotes} changeRequest={changeRequest} setChangeRequest={setChangeRequest} go={go} notify={notify} /> : <EmptyState title="No orders yet" description="Customer requests will appear here after a secure catalog link is submitted." action="Create an order list" onAction={() => go("create-list")} />)}
@@ -349,12 +362,12 @@ function Nav({ label, icon, active, badge, onClick }: { label: string; icon: str
   return <button className={`nav-item ${active ? "active" : ""}`} onClick={onClick}><span className="nav-icon">{icon}</span><span>{label}</span>{badge && <span className="nav-badge">{badge}</span>}</button>;
 }
 
-function Dashboard({ orderCreated, stage, products, salesUser, go, notify }: { orderCreated: boolean; stage: Stage; products: Product[]; salesUser: SalesUser | null; go: (v: View) => void; notify: (s: string) => void }) {
+function Dashboard({ orderCreated, savedOrderCount, stage, products, salesUser, go, notify }: { orderCreated: boolean; savedOrderCount: number; stage: Stage; products: Product[]; salesUser: SalesUser | null; go: (v: View) => void; notify: (s: string) => void }) {
   const firstName = salesUser?.name?.split(" ")[0] || "Sales team";
   return <div className="page dashboard-page">
     <div className="page-head"><div><p className="eyebrow">Sales workspace</p><h1>Welcome, {firstName}</h1><p>Your workspace is ready for live catalog and customer data.</p></div><div className="actions"><button className="button secondary" onClick={() => go("create-list")}>＋ Create order list</button><button className="button primary" onClick={() => go("products")}>＋ Upload inventory</button></div></div>
     <div className="metric-grid">
-      <Metric tone="green" value={orderCreated ? "1" : "0"} label="New requests" meta="Customer submissions" />
+      <Metric tone="green" value={String(savedOrderCount)} label="New requests" meta="Customer submissions" />
       <Metric tone="amber" value={stage === "proforma" ? "1" : "0"} label="Awaiting approval" meta="Estimates sent" />
       <Metric tone="blue" value={stage === "approved" ? "1" : "0"} label="Approved" meta="Accepted estimates" />
       <Metric tone="red" value={String(products.filter((product) => product.stock < 20).length)} label="Low-stock products" meta="Uploaded inventory" />
@@ -499,11 +512,14 @@ function OrderReview({ cartItems, cart, setQty, setReviewOpen, setOrderCreated }
     setSaving(true);
     try {
       await persistCustomer(customer);
+      const response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: customer.shareToken, accessCode: customer.accessCode, customer, items: cartItems.map((item: CustomerProduct) => ({ sku: item.sku, quantity: cart[item.sku] })) }) });
+      if (!response.ok) throw new Error("Order could not be saved");
       sessionStorage.setItem("desi-kitchen-order-customer", JSON.stringify(customer));
       window.dispatchEvent(new CustomEvent("order-customer-updated", { detail: customer }));
+      window.dispatchEvent(new Event("order-submitted"));
       setOrderCreated(true);
       setReviewOpen(false);
-    } catch { window.alert("Customer information could not be saved. Please verify the access code is still valid or call sales."); }
+    } catch { window.alert("The order request could not be saved. Please verify the secure link or access code is still valid, or call sales."); }
     finally { setSaving(false); }
   };
   return <div className="drawer-backdrop"><section className="review-drawer"><div className="drawer-head"><div><p className="eyebrow">Step 2 of 2</p><h2>Review your request</h2><p>Confirm or edit the saved customer information.</p></div><button className="close" onClick={() => setReviewOpen(false)}>×</button></div><div className="review-items">{cartItems.map((p: CustomerProduct) => <div className="review-item" key={p.sku}><span><b>{p.name}</b><small>{p.sku} · {p.pack}</small></span><div className="qty-control"><button onClick={() => setQty(p.sku, cart[p.sku] - 1)}>−</button><input value={cart[p.sku]} onChange={(e) => setQty(p.sku, Number(e.target.value))}/><button onClick={() => setQty(p.sku, cart[p.sku] + 1)}>＋</button></div></div>)}</div><div className="form-grid"><label>Contact name<input value={customer.contact} onChange={(e) => update("contact", e.target.value)} /></label><label>Business name<input value={customer.business} onChange={(e) => update("business", e.target.value)} /></label><label>Email<input type="email" value={customer.email} onChange={(e) => update("email", e.target.value)} /></label><label>Phone<input type="tel" value={customer.phone} onChange={(e) => update("phone", e.target.value)} /></label><label>Fulfillment<select><option>Delivery</option><option>Pickup</option></select></label><label>Requested date<input type="date" /></label><label className="full">Delivery address<input value={customer.address} onChange={(e) => update("address", e.target.value)} /></label><label className="full">Notes<textarea placeholder="Delivery instructions or special requests" /></label></div><div className="notice"><b>Saved customer profile.</b> Any edits above will update this customer record and remain saved until a sales representative deletes it.</div><button className="button customer-cta wide" disabled={!valid || saving} onClick={submit}>{saving ? "Saving…" : "Submit order request →"}</button></section></div>;
