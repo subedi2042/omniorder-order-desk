@@ -36,22 +36,24 @@ function quoteAmounts(products: Product[], cart: Cart, quoteLines: QuoteLine[], 
   return { lines, subtotal, discount, shipping, tax, total: discountedSubtotal + shipping + tax };
 }
 
-function createProformaPdf(products: Product[], cart: Cart, quoteLines: QuoteLine[], discountPercent: number, quoteNotes: string, approved: boolean) {
+async function createProformaPdf(products: Product[], cart: Cart, quoteLines: QuoteLine[], discountPercent: number, quoteNotes: string, approved: boolean) {
   const { lines, subtotal, discount, shipping, tax, total } = quoteAmounts(products, cart, quoteLines, discountPercent);
   const escapePdf = (value: string) => value.replace(/[^\x20-\x7E]/g, (character) => character === "×" ? "x" : "-").replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
   const text = (value: string, x: number, y: number, size = 10, bold = false, color = "0.05 0.09 0.08") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm (${escapePdf(value)}) Tj ET`;
   const rule = (x1: number, y1: number, x2: number, y2: number, width = .7, color = ".82 .83 .80") => `${color} RG ${width} w ${x1} ${y1} m ${x2} ${y2} l S`;
   const fill = (x: number, y: number, width: number, height: number, color: string) => `${color} rg ${x} ${y} ${width} ${height} re f`;
   const commands = [
-    text("DESI KITCHEN", 36, 731, 19, true, "0 .25 .18"), text("Authentic Indian Products", 36, 713, 9, false, ".35 .40 .38"),
+    "q 58 0 0 58 36 697 cm /Logo Do Q",
+    `BT /F3 18 Tf 0 .25 .18 rg 1 0 0 1 108 731 Tm (${escapePdf("Desi Kitchen")}) Tj ET`,
+    text("Paramount,", 36, 682, 11, false, ".32 .38 .48"), text("California", 36, 665, 11, false, ".32 .38 .48"),
     fill(approved ? 504 : 462, 735, approved ? 72 : 114, 20, approved ? ".90 .96 .93" : "1 .94 .84"),
     text(approved ? "APPROVED" : "AWAITING APPROVAL", approved ? 515 : 471, 742, 8, true, approved ? "0 .31 .26" : ".55 .28 0"),
-    text("ESTIMATE", 414, 704, 24, false), text("CUSTOMER ESTIMATE", 468, 684, 9, true, ".35 .40 .38"),
-    rule(36, 665, 576, 665, 1.2, ".05 .09 .08"),
-    text("BILL TO", 36, 632, 9, true, ".35 .40 .38"), text("Customer on order request", 36, 608, 13, true),
-    text("Contact and delivery details", 36, 588, 11), text("are supplied with the secure order.", 36, 572, 11),
-    text("DOCUMENT DETAILS", 315, 632, 9, true, ".35 .40 .38"), text("Issued when sent by sales", 315, 600, 11),
-    text("Validity and terms set by sales", 315, 582, 11),
+    `BT /F3 25 Tf 0 .25 .18 rg 1 0 0 1 430 704 Tm (${escapePdf("ESTIMATE")}) Tj ET`, text("Customer estimate", 468, 684, 10, false, ".32 .38 .48"),
+    rule(36, 638, 576, 638, 1.2, ".05 .09 .08"),
+    text("BILL TO", 36, 605, 9, true, ".35 .40 .38"), text("Customer on order request", 36, 581, 13, true),
+    text("Contact and delivery details", 36, 561, 11), text("are supplied with the secure order.", 36, 545, 11),
+    text("DOCUMENT DETAILS", 315, 605, 9, true, ".35 .40 .38"), text("Issued when sent by sales", 315, 573, 11),
+    text("Validity and terms set by sales", 315, 555, 11),
     text("ITEM", 48, 505, 8, true, ".35 .40 .38"), text("QTY", 294, 505, 8, true, ".35 .40 .38"),
     text("UNIT PRICE", 435, 505, 8, true, ".35 .40 .38"), text("TOTAL", 530, 505, 8, true, ".35 .40 .38"), rule(36, 491, 576, 491),
   ];
@@ -74,24 +76,41 @@ function createProformaPdf(products: Product[], cart: Cart, quoteLines: QuoteLin
     text(quoteNotes ? `Sales note: ${quoteNotes.slice(0, 78)}` : "Desi Kitchen sales | sales@desikitchen.me | (562) 470-7400", 36, 22, 8, false, ".35 .40 .38"),
   );
   const content = commands.join("\n");
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${new TextEncoder().encode(content).length} >>\nstream\n${content}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+  const encoder = new TextEncoder();
+  const logoBytes = new Uint8Array(await fetch("/desi-kitchen-logo-pdf.jpg").then((response) => {
+    if (!response.ok) throw new Error("Could not load the Desi Kitchen PDF logo");
+    return response.arrayBuffer();
+  }));
+  const objectBodies: Uint8Array[] = [
+    encoder.encode("<< /Type /Catalog /Pages 2 0 R >>"),
+    encoder.encode("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+    encoder.encode("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 7 0 R >> /XObject << /Logo 8 0 R >> >> /Contents 4 0 R >>"),
+    encoder.encode(`<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`),
+    encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"),
+    encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>"),
+    new Uint8Array([
+      ...encoder.encode(`<< /Type /XObject /Subtype /Image /Width 512 /Height 512 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logoBytes.length} >>\nstream\n`),
+      ...logoBytes,
+      ...encoder.encode("\nendstream"),
+    ]),
   ];
-  let pdf = "%PDF-1.4\n";
+  const parts: Uint8Array[] = [encoder.encode("%PDF-1.4\n")];
   const offsets = [0];
-  objects.forEach((object, index) => { offsets.push(new TextEncoder().encode(pdf).length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
-  const xref = new TextEncoder().encode(pdf).length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n `).join("\n")}\ntrailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
+  let byteLength = parts[0].length;
+  objectBodies.forEach((body, index) => {
+    offsets.push(byteLength);
+    const object = new Uint8Array([...encoder.encode(`${index + 1} 0 obj\n`), ...body, ...encoder.encode("\nendobj\n")]);
+    parts.push(object);
+    byteLength += object.length;
+  });
+  const xref = byteLength;
+  parts.push(encoder.encode(`xref\n0 ${objectBodies.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n `).join("\n")}\ntrailer\n<< /Size ${objectBodies.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+  return URL.createObjectURL(new Blob(parts as BlobPart[], { type: "application/pdf" }));
 }
 
-function downloadApprovedProformaPdf(products: Product[], cart: Cart, quoteLines: QuoteLine[], discountPercent: number, quoteNotes: string) {
-  const url = createProformaPdf(products, cart, quoteLines, discountPercent, quoteNotes, true);
+async function downloadApprovedProformaPdf(products: Product[], cart: Cart, quoteLines: QuoteLine[], discountPercent: number, quoteNotes: string) {
+  const url = await createProformaPdf(products, cart, quoteLines, discountPercent, quoteNotes, true);
   const link = document.createElement("a");
   link.href = url;
   link.download = "desi-kitchen-approved-estimate.pdf";
@@ -393,9 +412,9 @@ function CustomerDocument({ total, products, cart, quoteLines, discountPercent, 
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl("");
   };
-  const openPreview = () => {
+  const openPreview = async () => {
     closePreview();
-    setPreviewUrl(createProformaPdf(products, cart, quoteLines, discountPercent, quoteNotes, false));
+    setPreviewUrl(await createProformaPdf(products, cart, quoteLines, discountPercent, quoteNotes, false));
   };
   const submitRequest = () => {
     const note = requestText.trim();
