@@ -377,9 +377,35 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   const [search, setSearch] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState("");
+  const [draftCustomerName, setDraftCustomerName] = useState("");
   const customer = customers.find((record) => record.id === selectedCustomerId) || customers[0];
   const visible = products.filter((p) => `${p.sku} ${p.name}`.toLowerCase().includes(search.toLowerCase()));
   const toggle = (sku: string) => setSelected(selected.includes(sku) ? selected.filter((s) => s !== sku) : [...selected, sku]);
+  useEffect(() => {
+    fetch("/api/order-list-drafts").then(async (response) => {
+      const data = await response.json();
+      if (response.ok && data.draft) {
+        setSelectedCustomerId(data.draft.customerId);
+        setSelected(Array.isArray(data.draft.skus) ? data.draft.skus : []);
+        setDraftSavedAt(data.draft.updatedAt || "");
+        setDraftCustomerName(data.draft.customerName || "Saved customer");
+      }
+    }).finally(() => setDraftReady(true));
+  }, []);
+  useEffect(() => {
+    if (!draftReady || !customer) return;
+    const timeout = window.setTimeout(async () => {
+      const response = await fetch("/api/order-list-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId: customer.id, skus: selected }) });
+      if (response.ok) {
+        const data = await response.json();
+        setDraftSavedAt(data.updatedAt || new Date().toISOString());
+        setDraftCustomerName(customer.business);
+      }
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [draftReady, customer?.id, selected.join("|")]);
   const generateLink = async () => {
     if (!customer || !selected.length || generating) return;
     setGenerating(true);
@@ -398,7 +424,7 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   const copyLink = async () => { await navigator.clipboard?.writeText(generatedLink); notify("Secure customer link copied"); };
   if (!customers.length || !products.length) return <EmptyState title="Complete setup before sharing a catalog" description={!customers.length && !products.length ? "Upload a customer list and product inventory before creating an order link." : !customers.length ? "Upload at least one customer before creating an order link." : "Publish at least one in-stock product before creating an order link."} action={!customers.length ? "Upload customers" : "Upload inventory"} onAction={() => onPrerequisite(!customers.length ? "customers" : "products")} />;
   return <div className="page">
-    <div className="page-head"><div><p className="eyebrow">Sales initiated order</p><h1>Create a customer order list</h1><p>Choose the customer and products, then send a secure quantity-request link.</p></div><span className="badge approved">New draft</span></div>
+    <div className="page-head"><div><p className="eyebrow">Sales initiated order</p><h1>Create a customer order list</h1><p>Choose the customer and products, then send a secure quantity-request link.</p>{draftSavedAt && <small className="draft-status">Draft saved for <b>{draftCustomerName}</b> · {selected.length} products · {new Date(draftSavedAt).toLocaleString()}</small>}</div><span className="badge approved">{draftSavedAt ? "Draft saved" : "New draft"}</span></div>
     <div className="builder-grid"><section className="panel builder-main"><div className="builder-section"><span className="builder-number">1</span><div><h2>Choose customer</h2><p>Search uploaded customers by business, contact, or email.</p></div></div><div className="customer-choice"><span className="avatar pale">{customer?.business.slice(0,2).toUpperCase()}</span><span><b>{customer?.business}</b><small>{customer?.contact} · {customer?.email}</small></span><select aria-label="Select customer" value={selectedCustomerId} onChange={(event) => setSelectedCustomerId(event.target.value)}>{customers.map((record) => <option key={record.id} value={record.id}>{record.business} — {record.contact}</option>)}</select></div>
       <div className="builder-section"><span className="builder-number">2</span><div><h2>Select products</h2><p>Customers will see only these published products, without prices.</p></div></div><div className="search builder-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or SKU" /></div><div className="builder-products">{visible.map((p) => <label className="builder-product" key={p.sku}><input type="checkbox" checked={selected.includes(p.sku)} onChange={() => toggle(p.sku)} /><span><b>{p.name}</b><small>{p.sku} · {p.pack} · {p.stock < 20 ? "Low stock" : "In stock"}</small></span></label>)}</div>
     </section><aside className="panel builder-summary"><p className="eyebrow">Link summary</p><h2>{customer?.business}</h2><dl><dt>Products included</dt><dd>{selected.length}</dd><dt>Prices visible</dt><dd>No</dd><dt>Assigned rep</dt><dd>Signed-in sales representative</dd><dt>Expires</dt><dd>24 hours</dd></dl><div className="notice"><b>Customer action</b><br/>Enter quantities and send the completed request back to sales.</div><button className="button primary wide" disabled={!selected.length || generating} onClick={generateLink}>{generating ? "Generating secure site…" : "Generate secure customer site →"}</button>{generatedLink && <div className="generated-link"><label>Customer site<input readOnly value={generatedLink} onFocus={(event) => event.currentTarget.select()} /></label><button className="button primary wide" onClick={copyLink}>Copy link</button><button className="button secondary wide" onClick={() => window.open(generatedLink, "_blank", "noopener,noreferrer")}>Open customer site ↗</button><small>This private link expires after 24 hours.</small></div>}</aside></div>
