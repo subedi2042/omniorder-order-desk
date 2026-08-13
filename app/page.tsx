@@ -128,7 +128,7 @@ async function downloadApprovedProformaPdf(products: Product[], cart: Cart, quot
   const url = await createProformaPdf(products, cart, quoteLines, discountPercent, shippingAmount, taxPercent, quoteNotes, true, customer);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "desi-kitchen-approved-estimate.pdf";
+  link.download = "desi-kitchen-approved-estimate-updated.pdf";
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -139,7 +139,7 @@ async function downloadAwaitingApprovalEstimatePdf(products: Product[], cart: Ca
   const url = await createProformaPdf(products, cart, quoteLines, discountPercent, shippingAmount, taxPercent, quoteNotes, false, customer);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "desi-kitchen-estimate-awaiting-approval.pdf";
+  link.download = "desi-kitchen-estimate-awaiting-approval-updated.pdf";
   document.body.appendChild(link);
   link.click();
   link.remove();
