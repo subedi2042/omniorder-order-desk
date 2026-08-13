@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { paginateEstimateLines } from "@/lib/estimate-pagination";
 
 type Product = { sku: string; name: string; category: string; pack: string; price: number; stock: number; published: boolean };
 type CustomerRecord = { id: string; business: string; contact: string; email: string; phone: string; address: string; accessCode?: string; codeExpiresAt?: string; shareToken?: string };
@@ -60,13 +61,27 @@ async function createProformaPdf(products: Product[], cart: Cart, quoteLines: Qu
   const text = (value: string, x: number, y: number, size = 10, bold = false, color = "0.05 0.09 0.08") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg 1 0 0 1 ${x} ${y} Tm (${escapePdf(value)}) Tj ET`;
   const rule = (x1: number, y1: number, x2: number, y2: number, width = .7, color = ".82 .83 .80") => `${color} RG ${width} w ${x1} ${y1} m ${x2} ${y2} l S`;
   const fill = (x: number, y: number, width: number, height: number, color: string) => `${color} rg ${x} ${y} ${width} ${height} re f`;
-  const linePages = Array.from({ length: Math.max(1, Math.ceil(lines.length / 6)) }, (_, page) => lines.slice(page * 6, page * 6 + 6));
+  const linePages = paginateEstimateLines(lines);
   const pageContents = linePages.map((pageLines, pageIndex) => {
-    const commands = ["q 58 0 0 58 36 697 cm /Logo Do Q", `BT /F3 18 Tf 0 .25 .18 rg 1 0 0 1 108 731 Tm (${escapePdf("Desi Kitchen")}) Tj ET`, text("Paramount, California", 36, 674, 10, false, ".32 .38 .48"), fill(approved ? 504 : 462, 735, approved ? 72 : 114, 20, approved ? ".90 .96 .93" : "1 .94 .84"), text(approved ? "APPROVED" : "AWAITING APPROVAL", approved ? 515 : 471, 742, 8, true, approved ? "0 .31 .26" : ".55 .28 0"), `BT /F3 25 Tf 0 .25 .18 rg 1 0 0 1 430 704 Tm (${escapePdf("ESTIMATE")}) Tj ET`, text(`Page ${pageIndex + 1} of ${linePages.length}`, 500, 676, 8, false, ".32 .38 .48"), rule(36, 638, 576, 638, 1.2, ".05 .09 .08"), text("BILL TO", 36, 605, 9, true, ".35 .40 .38"), text(customer?.business || "Customer on order request", 36, 581, 13, true), text(customer?.contact || "Contact supplied with secure order", 36, 561, 10), text("ITEM", 48, 520, 8, true, ".35 .40 .38"), text("QTY", 294, 520, 8, true, ".35 .40 .38"), text("UNIT PRICE", 435, 520, 8, true, ".35 .40 .38"), text("TOTAL", 530, 520, 8, true, ".35 .40 .38"), rule(36, 506, 576, 506)];
-    let rowY = 480;
-    pageLines.forEach((line) => { commands.push(text(line.name.slice(0, 45), 48, rowY, 9, true), text(`${line.sku} - ${line.pack}`, 48, rowY - 14, 8, false, ".35 .40 .38"), text(String(line.quantity), 294, rowY - 2, 10), text(money(line.unitPrice), 435, rowY - 2, 10), text(money(line.unitPrice * line.quantity), 530, rowY - 2, 10), rule(36, rowY - 27, 576, rowY - 27)); rowY -= 48; });
-    if (pageIndex === linePages.length - 1) commands.push(text("Subtotal", 390, 174, 10), text(money(subtotal), 530, 174, 10, true), ...(discountPercent > 0 ? [text(`Discount (${discountPercent}%)`, 390, 154, 10), text(`-${money(discount)}`, 530, 154, 10, true)] : []), text("Shipping", 390, 134, 10), text(money(shipping), 530, 134, 10, true), text(`Tax (${taxPercent}%)`, 390, 114, 10), text(money(tax), 530, 114, 10, true), rule(390, 101, 576, 101, 1.1, ".05 .09 .08"), text("Total", 390, 76, 15, true), text(money(total), 520, 76, 15, true));
-    commands.push(rule(36, 55, 576, 55), text(approved ? "Approved estimate. Pricing and quantities were accepted by the customer." : "Awaiting customer approval. This estimate is not yet approved.", 36, 36, 8, false, ".35 .40 .38"), text(quoteNotes ? `Sales note: ${quoteNotes.slice(0, 78)}` : "Desi Kitchen sales | sales@desikitchen.me | (562) 470-7400", 36, 22, 8, false, ".35 .40 .38"));
+    const isFirstPage = pageIndex === 0;
+    const isLastPage = pageIndex === linePages.length - 1;
+    const commands: string[] = [];
+    let rowY: number;
+    if (isFirstPage) {
+      commands.push("q 54 0 0 54 36 710 cm /Logo Do Q", `BT /F3 18 Tf 0 .25 .18 rg 1 0 0 1 100 738 Tm (${escapePdf("Desi Kitchen")}) Tj ET`, text("Paramount, California", 100, 721, 8, false, ".32 .38 .48"), fill(approved ? 504 : 462, 744, approved ? 72 : 114, 18, approved ? ".90 .96 .93" : "1 .94 .84"), text(approved ? "APPROVED" : "AWAITING APPROVAL", approved ? 515 : 470, 750, 8, true, approved ? "0 .31 .26" : ".55 .28 0"), `BT /F3 24 Tf 0 .25 .18 rg 1 0 0 1 438 712 Tm (${escapePdf("ESTIMATE")}) Tj ET`, rule(36, 690, 576, 690, 1.2, "0 .25 .18"), text("BILL TO", 36, 662, 8, true, ".35 .40 .38"), text(customer?.business || "Customer on order request", 36, 642, 12, true), text(customer?.contact || "Contact supplied with secure order", 36, 625, 9), text(customer?.email || "", 36, 610, 8, false, ".32 .38 .48"), text("DOCUMENT DETAILS", 462, 662, 8, true, ".35 .40 .38"), text(new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), 486, 642, 9), text("Terms: Net 15", 501, 625, 9), text(`${lines.length} product lines`, 490, 608, 9), text("SKU / ITEM", 42, 580, 8, true, ".35 .40 .38"), text("PACK", 347, 580, 8, true, ".35 .40 .38"), text("QTY", 420, 580, 8, true, ".35 .40 .38"), text("UNIT", 481, 580, 8, true, ".35 .40 .38"), text("LINE TOTAL", 526, 580, 8, true, ".35 .40 .38"), fill(36, 570, 540, 1, ".05 .30 .23"));
+      rowY = 551;
+    } else {
+      commands.push(fill(36, 754, 540, 22, ".96 .97 .96"), text("SKU / ITEM", 42, 762, 8, true, ".35 .40 .38"), text("PACK", 347, 762, 8, true, ".35 .40 .38"), text("QTY", 420, 762, 8, true, ".35 .40 .38"), text("UNIT", 481, 762, 8, true, ".35 .40 .38"), text("LINE TOTAL", 526, 762, 8, true, ".35 .40 .38"));
+      rowY = 737;
+    }
+    pageLines.forEach((line) => {
+      commands.push(text(`${line.sku}  ${line.name}`.slice(0, 58), 42, rowY, 8.5), text(line.pack.slice(0, 14), 347, rowY, 8, false, ".32 .38 .48"), text(String(line.quantity), 426, rowY, 8.5), text(money(line.unitPrice), 478, rowY, 8.5), text(money(line.unitPrice * line.quantity), 528, rowY, 8.5), rule(36, rowY - 7, 576, rowY - 7, .35));
+      rowY -= 17;
+    });
+    if (isLastPage) {
+      commands.push(text("Subtotal", 390, 151, 9), text(money(subtotal), 528, 151, 9, true), ...(discountPercent > 0 ? [text(`Discount (${discountPercent}%)`, 390, 131, 9), text(`-${money(discount)}`, 528, 131, 9, true)] : []), text("Shipping", 390, 111, 9), text(money(shipping), 528, 111, 9, true), text(`Tax (${taxPercent}%)`, 390, 91, 9), text(money(tax), 528, 91, 9, true), rule(390, 78, 576, 78, 1.1, "0 .25 .18"), text("TOTAL", 390, 56, 12, true, "0 .25 .18"), text(money(total), 515, 56, 12, true, "0 .25 .18"));
+    }
+    commands.push(rule(36, 36, 576, 36, .5), text(`Page ${pageIndex + 1} of ${linePages.length}`, 278, 20, 8, false, ".32 .38 .48"));
     return commands.join("\n");
   });
   const encoder = new TextEncoder();
