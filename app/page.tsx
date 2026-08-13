@@ -138,6 +138,17 @@ async function downloadApprovedProformaPdf(products: Product[], cart: Cart, quot
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function downloadAwaitingApprovalEstimatePdf(products: Product[], cart: Cart, quoteLines: QuoteLine[], discountPercent: number, shippingAmount: number, taxPercent: number, quoteNotes: string, customer?: CustomerRecord | null) {
+  const url = await createProformaPdf(products, cart, quoteLines, discountPercent, shippingAmount, taxPercent, quoteNotes, false, customer);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "desi-kitchen-estimate-awaiting-approval.pdf";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("landing");
   const [products, setProducts] = useState(seedProducts);
@@ -566,10 +577,11 @@ function Documents({ stage, setStage, products, cart, quoteLines, discountPercen
   const { lines, subtotal, discount, shipping, tax, total } = quoteAmounts(products, cart, quoteLines, discountPercent, shippingAmount, taxPercent);
   const approved = stage === "approved";
   const download = () => { downloadApprovedProformaPdf(products, cart, quoteLines, discountPercent, shippingAmount, taxPercent, quoteNotes, customer); notify("Approved estimate PDF downloaded"); };
-  return <div className="page"><div className="page-head"><div><p className="eyebrow">Estimates</p><h1>{approved ? "Approved estimate" : "Customer estimate"}</h1><p>Prepared from the current customer order request</p></div><div className="actions">{approved && <button className="button primary" onClick={download}>⇩ Download approved estimate PDF</button>}<button className="button secondary" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Secure document link copied"); }}>↗ Copy secure link</button></div></div>
+  const downloadAwaitingApproval = () => { downloadAwaitingApprovalEstimatePdf(products, cart, quoteLines, discountPercent, shippingAmount, taxPercent, quoteNotes, customer); notify("Awaiting-approval estimate PDF downloaded"); };
+  return <div className="page"><div className="page-head"><div><p className="eyebrow">Estimates</p><h1>{approved ? "Approved estimate" : "Customer estimate"}</h1><p>Prepared from the current customer order request</p></div><div className="actions">{approved ? <button className="button primary" onClick={download}>⇩ Download approved estimate PDF</button> : <button className="button primary" onClick={downloadAwaitingApproval}>⇩ Download estimate PDF</button>}<button className="button secondary" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Secure document link copied"); }}>↗ Copy secure link</button></div></div>
     <div className="document-grid"><section className="invoice-sheet"><div className="invoice-top"><div><img className="brand-logo" src="/desi-kitchen-logo.png" alt=""/><h2>Desi Kitchen</h2><p>Paramount, California</p></div><div className="invoice-title"><span className={`badge ${approved ? "approved" : "proforma"}`}>{approved ? "approved" : "awaiting approval"}</span><h2>ESTIMATE</h2><p>Customer estimate</p></div></div><div className="invoice-parties"><div><small>BILL TO</small><strong>Customer on order request</strong><p>Contact and delivery details<br/>are supplied with the secure order.</p></div><div><small>DOCUMENT DETAILS</small><p>Issued when sent by sales<br/>Validity and terms set by sales</p></div></div><table><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>{lines.map((line) => <tr key={line.sku}><td><b>{line.name}</b><small>{line.sku} · {line.pack}</small></td><td>{line.quantity}</td><td>{money(line.unitPrice)}</td><td>{money(line.unitPrice * line.quantity)}</td></tr>)}</tbody></table><div className="invoice-total"><span>Subtotal <b>{money(subtotal)}</b></span>{discountPercent > 0 && <span>Discount ({discountPercent}%) <b>-{money(discount)}</b></span>}<span>Shipping <b>{money(shipping)}</b></span><span>Tax ({taxPercent}%) <b>{money(tax)}</b></span><strong>Total <b>{money(total)}</b></strong></div>{quoteNotes && <p className="invoice-note"><b>Sales note:</b> {quoteNotes}</p>}<p className="invoice-note">{approved ? "Approved by the customer. Pricing, quantities, and terms are accepted." : "Thank you for your business. Customer approval is required."}</p></section>
       <aside className="panel timeline"><div className="panel-head"><div><h2>Approval status</h2><p>This MVP ends with an approved PDF</p></div></div><div className="timeline-step done"><span>✓</span><div><b>Estimate created</b><small>Pricing and stock confirmed</small></div></div><div className={`timeline-step ${approved ? "done" : ""}`}><span>{approved ? "✓" : "2"}</span><div><b>Customer approved</b><small>{approved ? "Completed" : "Pending"}</small></div></div>
-        {stage === "proforma" && <><button className="button primary wide" onClick={() => go("catalog")}>Open customer approval view</button><button className="button secondary wide" onClick={() => { setStage("approved"); notify("Approval recorded"); }}>Record offline approval</button></>}
+        {stage === "proforma" && <><button className="button primary wide" onClick={downloadAwaitingApproval}>Download estimate PDF</button><button className="button secondary wide" onClick={() => go("catalog")}>Open customer approval view</button><button className="button secondary wide" onClick={() => { setStage("approved"); notify("Approval recorded"); }}>Record offline approval</button></>}
         {approved && <><button className="button primary wide" onClick={download}>Open or download approved PDF</button><div className="notice"><b>Approved and sent to dispatch</b><br/>This accepted estimate is the dispatch team’s approved document. Final invoicing remains in the next implementation phase.</div></>}
       </aside>
     </div>
