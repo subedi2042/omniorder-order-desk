@@ -3,7 +3,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 type Product = { sku: string; name: string; category: string; pack: string; price: number; stock: number; published: boolean };
-type CustomerRecord = { id: string; business: string; contact: string; email: string; phone: string; address: string; accessCode?: string; codeExpiresAt?: string };
+type CustomerRecord = { id: string; business: string; contact: string; email: string; phone: string; address: string; accessCode?: string; codeExpiresAt?: string; shareToken?: string };
 type CustomerProduct = Omit<Product, "price">;
 type Cart = Record<string, number>;
 type QuoteLine = { sku: string; quantity: number; unitPrice: number };
@@ -16,7 +16,9 @@ const seedCustomers: CustomerRecord[] = [];
 
 const money = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 async function persistCustomer(customer: CustomerRecord) {
-  let response = customer.accessCode
+  let response = customer.shareToken
+    ? await fetch("/api/catalog-shares", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: customer.shareToken, customer }) })
+    : customer.accessCode
     ? await fetch("/api/customer-access", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: customer.accessCode, customer }) })
     : await fetch("/api/customers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customers: [customer] }) });
   if (!response.ok && customer.accessCode) response = await fetch("/api/customers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customers: [customer] }) });
@@ -173,7 +175,18 @@ export default function Home() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.has("token")) { setTargetedList(true); setView("catalog"); }
+    const shareToken = params.get("token");
+    if (shareToken) {
+      setTargetedList(true);
+      setView("catalog");
+      fetch(`/api/catalog-shares?token=${encodeURIComponent(shareToken)}`).then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Secure catalog unavailable");
+        setProducts((data.products || []).map((product: CustomerProduct) => ({ ...product, price: 0 })));
+        setTargetSkus((data.products || []).map((product: CustomerProduct) => product.sku));
+        if (data.customer) setOrderCustomer(data.customer);
+      }).catch(() => notify("This secure catalog link is invalid or expired"));
+    }
     fetch("/api/auth/google").then((response) => response.json()).then((data) => setSalesUser(data.user || null)).catch(() => undefined);
   }, []);
   useEffect(() => {
@@ -245,7 +258,7 @@ export default function Home() {
         <header className="mobile-header"><button className="brand" onClick={() => go("home")}><img className="brand-logo" src="/desi-kitchen-logo.png" alt="Desi Kitchen logo"/><span className="company-name">Desi Kitchen</span></button><button className="icon-button" onClick={() => go("catalog")}>Catalog</button></header>
         {view === "home" && <Dashboard orderCreated={orderCreated} stage={stage} products={products} salesUser={salesUser} go={go} notify={notify} />}
         {view === "products" && <Products products={products} setProducts={setProducts} filtered={filtered} query={query} setQuery={setQuery} categories={categories} category={category} setCategory={setCategory} setEditing={setEditing} importCatalog={importCatalog} notify={notify} go={go} />}
-        {view === "create-list" && <SalesOrderListBuilder products={products.filter((p) => p.published)} customers={customers} selectedCustomerId={selectedCustomerId} setSelectedCustomerId={setSelectedCustomerId} selected={targetSkus} setSelected={setTargetSkus} onPrerequisite={(next) => go(next)} onSend={() => { const customer = customers.find((record) => record.id === selectedCustomerId) || customers[0]; setOrderCustomer(customer); setTargetedList(true); const link = `${location.origin}/?token=dk_${crypto.randomUUID()}&customer=${customer.id}`; navigator.clipboard?.writeText(link); history.replaceState({}, "", link); notify(`Secure order-list link copied for ${customer.business}`); go("catalog"); }} notify={notify} />}
+        {view === "create-list" && <SalesOrderListBuilder products={products.filter((p) => p.published)} customers={customers} selectedCustomerId={selectedCustomerId} setSelectedCustomerId={setSelectedCustomerId} selected={targetSkus} setSelected={setTargetSkus} onPrerequisite={(next) => go(next)} onSend={(customer) => { setOrderCustomer(customer); setTargetedList(true); }} notify={notify} />}
         {view === "orders" && (orderCreated ? <Orders orderCreated={orderCreated} stage={stage} setStage={setStage} products={products} cart={cart} quoteLines={quoteLines} setQuoteLines={setQuoteLines} discountPercent={discountPercent} setDiscountPercent={setDiscountPercent} shippingAmount={shippingAmount} setShippingAmount={setShippingAmount} taxPercent={taxPercent} setTaxPercent={setTaxPercent} quoteNotes={quoteNotes} setQuoteNotes={setQuoteNotes} changeRequest={changeRequest} setChangeRequest={setChangeRequest} go={go} notify={notify} /> : <EmptyState title="No orders yet" description="Customer requests will appear here after a secure catalog link is submitted." action="Create an order list" onAction={() => go("create-list")} />)}
         {view === "documents" && (orderCreated ? <Documents stage={stage} setStage={setStage} products={products} cart={cart} quoteLines={quoteLines} discountPercent={discountPercent} shippingAmount={shippingAmount} taxPercent={taxPercent} quoteNotes={quoteNotes} customer={orderCustomer} go={go} notify={notify} /> : <EmptyState title="No estimates yet" description="Create an estimate after a customer submits an order request." action="View orders" onAction={() => go("orders")} />)}
         {view === "customers" && <Customers customers={customers} setCustomers={setCustomers} notify={notify} />}
@@ -360,17 +373,35 @@ function Dashboard({ orderCreated, stage, products, salesUser, go, notify }: { o
 function Metric({ tone, value, label, meta }: { tone: string; value: string; label: string; meta: string }) { return <div className="metric"><span className={`metric-icon ${tone}`}>●</span><div><strong>{value}</strong><p>{label}</p><small>{meta}</small></div></div>; }
 function OrderRow({ initials, customer, number, details, status, fresh, onClick }: { initials: string; customer: string; number: string; details: string; status: string; fresh?: boolean; onClick: () => void }) { return <button className={`order-row ${fresh ? "fresh" : ""}`} onClick={onClick}><span className="avatar pale">{initials}</span><span className="order-info"><strong>{customer}</strong><small>{number} · {details}</small></span><span className={`badge ${status.toLowerCase()}`}>{status}</span><span>›</span></button>; }
 
-function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSelectedCustomerId, selected, setSelected, onPrerequisite, onSend, notify }: { products: Product[]; customers: CustomerRecord[]; selectedCustomerId: string; setSelectedCustomerId: (id: string) => void; selected: string[]; setSelected: (s: string[]) => void; onPrerequisite: (view: "customers" | "products") => void; onSend: () => void; notify: (s: string) => void }) {
+function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSelectedCustomerId, selected, setSelected, onPrerequisite, onSend, notify }: { products: Product[]; customers: CustomerRecord[]; selectedCustomerId: string; setSelectedCustomerId: (id: string) => void; selected: string[]; setSelected: (s: string[]) => void; onPrerequisite: (view: "customers" | "products") => void; onSend: (customer: CustomerRecord) => void; notify: (s: string) => void }) {
   const [search, setSearch] = useState("");
+  const [generatedLink, setGeneratedLink] = useState("");
+  const [generating, setGenerating] = useState(false);
   const customer = customers.find((record) => record.id === selectedCustomerId) || customers[0];
   const visible = products.filter((p) => `${p.sku} ${p.name}`.toLowerCase().includes(search.toLowerCase()));
   const toggle = (sku: string) => setSelected(selected.includes(sku) ? selected.filter((s) => s !== sku) : [...selected, sku]);
+  const generateLink = async () => {
+    if (!customer || !selected.length || generating) return;
+    setGenerating(true);
+    try {
+      const response = await fetch("/api/catalog-shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId: customer.id, skus: selected }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Secure link could not be created");
+      const link = `${location.origin}/?token=${encodeURIComponent(data.token)}`;
+      setGeneratedLink(link);
+      onSend(customer);
+      await navigator.clipboard?.writeText(link);
+      notify(`Secure link created and copied for ${customer.business}`);
+    } catch { notify("Secure link could not be created. Please try again."); }
+    finally { setGenerating(false); }
+  };
+  const copyLink = async () => { await navigator.clipboard?.writeText(generatedLink); notify("Secure customer link copied"); };
   if (!customers.length || !products.length) return <EmptyState title="Complete setup before sharing a catalog" description={!customers.length && !products.length ? "Upload a customer list and product inventory before creating an order link." : !customers.length ? "Upload at least one customer before creating an order link." : "Publish at least one in-stock product before creating an order link."} action={!customers.length ? "Upload customers" : "Upload inventory"} onAction={() => onPrerequisite(!customers.length ? "customers" : "products")} />;
   return <div className="page">
     <div className="page-head"><div><p className="eyebrow">Sales initiated order</p><h1>Create a customer order list</h1><p>Choose the customer and products, then send a secure quantity-request link.</p></div><span className="badge approved">New draft</span></div>
     <div className="builder-grid"><section className="panel builder-main"><div className="builder-section"><span className="builder-number">1</span><div><h2>Choose customer</h2><p>Search uploaded customers by business, contact, or email.</p></div></div><div className="customer-choice"><span className="avatar pale">{customer?.business.slice(0,2).toUpperCase()}</span><span><b>{customer?.business}</b><small>{customer?.contact} · {customer?.email}</small></span><select aria-label="Select customer" value={selectedCustomerId} onChange={(event) => setSelectedCustomerId(event.target.value)}>{customers.map((record) => <option key={record.id} value={record.id}>{record.business} — {record.contact}</option>)}</select></div>
       <div className="builder-section"><span className="builder-number">2</span><div><h2>Select products</h2><p>Customers will see only these published products, without prices.</p></div></div><div className="search builder-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or SKU" /></div><div className="builder-products">{visible.map((p) => <label className="builder-product" key={p.sku}><input type="checkbox" checked={selected.includes(p.sku)} onChange={() => toggle(p.sku)} /><span><b>{p.name}</b><small>{p.sku} · {p.pack} · {p.stock < 20 ? "Low stock" : "In stock"}</small></span></label>)}</div>
-    </section><aside className="panel builder-summary"><p className="eyebrow">Link summary</p><h2>{customer?.business}</h2><dl><dt>Products included</dt><dd>{selected.length}</dd><dt>Prices visible</dt><dd>No</dd><dt>Assigned rep</dt><dd>Signed-in sales representative</dd><dt>Expires</dt><dd>After order submission</dd></dl><div className="notice"><b>Customer action</b><br/>Enter quantities and send the completed request back to sales.</div><button className="button primary wide" disabled={!selected.length} onClick={onSend}>Generate & copy secure link →</button><button className="button secondary wide" onClick={() => notify("Preview uses the same price-private customer view")}>Preview customer view</button></aside></div>
+    </section><aside className="panel builder-summary"><p className="eyebrow">Link summary</p><h2>{customer?.business}</h2><dl><dt>Products included</dt><dd>{selected.length}</dd><dt>Prices visible</dt><dd>No</dd><dt>Assigned rep</dt><dd>Signed-in sales representative</dd><dt>Expires</dt><dd>24 hours</dd></dl><div className="notice"><b>Customer action</b><br/>Enter quantities and send the completed request back to sales.</div><button className="button primary wide" disabled={!selected.length || generating} onClick={generateLink}>{generating ? "Generating secure site…" : "Generate secure customer site →"}</button>{generatedLink && <div className="generated-link"><label>Customer site<input readOnly value={generatedLink} onFocus={(event) => event.currentTarget.select()} /></label><button className="button primary wide" onClick={copyLink}>Copy link</button><button className="button secondary wide" onClick={() => window.open(generatedLink, "_blank", "noopener,noreferrer")}>Open customer site ↗</button><small>This private link expires after 24 hours.</small></div>}</aside></div>
   </div>;
 }
 
