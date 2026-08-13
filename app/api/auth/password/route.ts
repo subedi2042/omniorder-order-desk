@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { postgres } from "../../../../db/postgres";
 
 const encoder = new TextEncoder();
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -22,14 +22,17 @@ async function sessionCookie(user: { id: string; email: string; name: string }, 
 }
 
 async function prepareDatabase() {
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS sales_users (
+  const sql = postgres();
+  if (!sql) throw new Error("DATABASE_URL is not configured");
+  await sql`CREATE TABLE IF NOT EXISTS sales_users (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     password_salt TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  )`).run();
+    created_at BIGINT NOT NULL
+  )`;
+  return sql;
 }
 
 export async function POST(request: Request) {
@@ -41,18 +44,19 @@ export async function POST(request: Request) {
     const password = body.password || "";
     if (!emailPattern.test(email)) return Response.json({ error: "Enter a valid email address." }, { status: 400 });
     if (password.length < 8) return Response.json({ error: "Password must be at least 8 characters." }, { status: 400 });
-    await prepareDatabase();
+    const sql = await prepareDatabase();
     if (body.action === "register") {
       const name = body.name?.trim() || "";
       if (name.length < 2) return Response.json({ error: "Enter your full name." }, { status: 400 });
-      const existing = await env.DB.prepare("SELECT id FROM sales_users WHERE email = ?").bind(email).first();
-      if (existing) return Response.json({ error: "An account already exists for this email. Sign in instead." }, { status: 409 });
+      const existing = await sql`SELECT id FROM sales_users WHERE email = ${email} LIMIT 1`;
+      if (existing.length) return Response.json({ error: "An account already exists for this email. Sign in instead." }, { status: 409 });
       const salt = crypto.getRandomValues(new Uint8Array(16));
       const user = { id: crypto.randomUUID(), email, name };
-      await env.DB.prepare("INSERT INTO sales_users (id, email, name, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(user.id, email, name, await hashPassword(password, salt), encode(salt), Date.now()).run();
+      await sql`INSERT INTO sales_users (id, email, name, password_hash, password_salt, created_at) VALUES (${user.id}, ${email}, ${name}, ${await hashPassword(password, salt)}, ${encode(salt)}, ${Date.now()})`;
       return Response.json({ user: { sub: user.id, email, name } }, { headers: { "Set-Cookie": await sessionCookie(user, secret) } });
     }
-    const record = await env.DB.prepare("SELECT id, email, name, password_hash, password_salt FROM sales_users WHERE email = ?").bind(email).first<{ id: string; email: string; name: string; password_hash: string; password_salt: string }>();
+    const records = await sql`SELECT id, email, name, password_hash, password_salt FROM sales_users WHERE email = ${email} LIMIT 1`;
+    const record = records[0] as { id: string; email: string; name: string; password_hash: string; password_salt: string } | undefined;
     if (!record || await hashPassword(password, decode(record.password_salt)) !== record.password_hash) return Response.json({ error: "Email or password is incorrect." }, { status: 401 });
     return Response.json({ user: { sub: record.id, email: record.email, name: record.name } }, { headers: { "Set-Cookie": await sessionCookie(record, secret) } });
   } catch {
