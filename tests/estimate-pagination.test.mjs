@@ -38,3 +38,14 @@ test("every estimate workflow uses the shared adaptive PDF generator", async () 
   assert.match(pageSource, /createProformaPdf\(products, cart, quoteLines,[\s\S]*false, customer\)/);
   assert.match(pageSource, /createProformaPdf\(products, cart, quoteLines,[\s\S]*true, customer\)/);
 });
+
+test("new customer orders reset selections while estimate drafts persist", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const draftRoute = await readFile(new URL("../app/api/order-list-drafts/route.ts", import.meta.url), "utf8");
+
+  assert.match(pageSource, /if \(next === "create-list" && view !== "create-list"\) resetNewOrder\(\)/);
+  assert.match(pageSource, /setSelectedCustomerId\(""\); setTargetSkus\(\[\]\); setTargetQuantities\(\{\}\)/);
+  assert.match(pageSource, /\/api\/order-list-drafts\?customerId=/);
+  assert.match(pageSource, /saveOrderStatus\?\.\("request", \{ quoteLines: draftLines/);
+  assert.match(draftRoute, /PRIMARY KEY \(sales_sub,customer_id\)/);
+});

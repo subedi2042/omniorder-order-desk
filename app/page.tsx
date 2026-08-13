@@ -270,6 +270,12 @@ export default function Home() {
     if (!response.ok) { notify("Order status could not be saved"); return false; }
     setStage(status); setSavedOrders((orders) => orders.map((order) => order.id === currentOrderId ? { ...order, ...estimate, status, updatedAt: new Date().toISOString() } : order)); setSavedOrderCount((count) => status === "request" ? count : Math.max(0, count - (savedOrders.find((order) => order.id === currentOrderId)?.status === "request" ? 1 : 0))); return true;
   };
+  const resetNewOrder = () => {
+    setSelectedCustomerId(""); setTargetSkus([]); setTargetQuantities({}); setTargetedList(false);
+    setCurrentOrderId(""); setOrderCreated(false); setOrderCustomer(null); setCart({}); setQuoteLines([]);
+    setDiscountPercent(0); setShippingAmount(0); setTaxPercent(0); setQuoteNotes(""); setChangeRequest("");
+    setStage("request"); setQuery(""); setCategory("All products");
+  };
   const salesViews: View[] = ["home", "products", "create-list", "orders", "order-detail", "documents", "customers", "settings"];
   const go = (next: View) => {
     if (salesViews.includes(next) && !salesUser) {
@@ -281,6 +287,7 @@ export default function Home() {
       return;
     }
     if (salesViews.includes(next)) {
+      if (next === "create-list" && view !== "create-list") resetNewOrder();
       history.replaceState({}, "", location.pathname);
       fetch("/api/products").then((response) => response.ok ? response.json() : null).then((data) => {
         if (Array.isArray(data?.products)) setProducts(data.products);
@@ -488,28 +495,31 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   const [draftSavedAt, setDraftSavedAt] = useState("");
   const [draftCustomerName, setDraftCustomerName] = useState("");
   const selectionTouched = useRef(false);
-  const customer = customers.find((record) => record.id === selectedCustomerId) || customers[0];
+  const customer = customers.find((record) => record.id === selectedCustomerId);
   const visible = products.filter((p) => `${p.sku} ${p.name}`.toLowerCase().includes(search.toLowerCase()));
   const toggle = (sku: string) => {
     selectionTouched.current = true;
     if (selected.includes(sku)) { setSelected(selected.filter((s) => s !== sku)); const next = { ...quantities }; delete next[sku]; setQuantities(next); }
     else { setSelected([...selected, sku]); setQuantities({ ...quantities, [sku]: quantities[sku] || 1 }); }
   };
-  const setInitialQuantity = (sku: string, quantity: number) => setQuantities({ ...quantities, [sku]: Math.max(1, Math.floor(quantity || 1)) });
+  const setInitialQuantity = (sku: string, quantity: number) => { selectionTouched.current = true; setQuantities({ ...quantities, [sku]: Math.max(1, Math.floor(quantity || 1)) }); };
   useEffect(() => {
-    fetch("/api/order-list-drafts").then(async (response) => {
+    setGeneratedLink(""); setDraftSavedAt(""); setDraftCustomerName("");
+    setSelected([]); setQuantities({}); selectionTouched.current = false;
+    if (!selectedCustomerId) { setDraftReady(false); return; }
+    setDraftReady(false);
+    fetch(`/api/order-list-drafts?customerId=${encodeURIComponent(selectedCustomerId)}`).then(async (response) => {
       const data = await response.json();
       if (response.ok && data.draft && !selectionTouched.current) {
-        setSelectedCustomerId(data.draft.customerId);
         setSelected(Array.isArray(data.draft.skus) ? data.draft.skus : []);
         setQuantities(data.draft.quantities || {});
         setDraftSavedAt(data.draft.updatedAt || "");
         setDraftCustomerName(data.draft.customerName || "Saved customer");
       }
     }).finally(() => setDraftReady(true));
-  }, []);
+  }, [selectedCustomerId]);
   useEffect(() => {
-    if (!draftReady || !customer) return;
+    if (!draftReady || !customer || !selectionTouched.current) return;
     const timeout = window.setTimeout(async () => {
       const response = await fetch("/api/order-list-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerId: customer.id, skus: selected, quantities }) });
       if (response.ok) {
@@ -531,6 +541,8 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
       setGeneratedLink(link);
       const items = selected.map((sku) => ({ sku, quantity: Math.max(1, Math.floor(Number(quantities[sku]) || 1)) }));
       onSend(customer, data.orderId, items);
+      await fetch(`/api/order-list-drafts?customerId=${encodeURIComponent(customer.id)}`, { method: "DELETE" });
+      setDraftSavedAt(""); setDraftCustomerName("");
       await navigator.clipboard?.writeText(link);
       notify(`Secure link created with ${data.selectedCount || items.length} products and copied for ${customer.business}`);
     } catch { notify("Secure link could not be created. Please try again."); }
@@ -548,7 +560,7 @@ function SalesOrderListBuilder({ products, customers, selectedCustomerId, setSel
   if (!customers.length || !products.length) return <EmptyState title="Complete setup before sharing a catalog" description={!customers.length && !products.length ? "Upload a customer list and product inventory before creating an order link." : !customers.length ? "Upload at least one customer before creating an order link." : "Publish at least one in-stock product before creating an order link."} action={!customers.length ? "Upload customers" : "Upload inventory"} onAction={() => onPrerequisite(!customers.length ? "customers" : "products")} />;
   return <div className="page">
     <div className="page-head"><div><p className="eyebrow">Sales initiated order</p><h1>Create a customer order list</h1><p>Choose the customer and products, then send a secure quantity-request link.</p>{draftSavedAt && <small className="draft-status">Draft saved for <b>{draftCustomerName}</b> · {selected.length} products · {new Date(draftSavedAt).toLocaleString()}</small>}</div><span className="badge approved">{draftSavedAt ? "Draft saved" : "New draft"}</span></div>
-    <div className="builder-grid"><section className="panel builder-main"><div className="builder-section"><span className="builder-number">1</span><div><h2>Choose customer</h2><p>Search uploaded customers by business, contact, or email.</p></div></div><div className="customer-choice"><span className="avatar pale">{customer?.business.slice(0,2).toUpperCase()}</span><span><b>{customer?.business}</b><small>{customer?.contact} · {customer?.email}</small></span><select aria-label="Select customer" value={selectedCustomerId} onChange={(event) => setSelectedCustomerId(event.target.value)}>{customers.map((record) => <option key={record.id} value={record.id}>{record.business} — {record.contact}</option>)}</select></div>
+    <div className="builder-grid"><section className="panel builder-main"><div className="builder-section"><span className="builder-number">1</span><div><h2>Choose customer</h2><p>Search uploaded customers by business, contact, or email.</p></div></div><div className="customer-choice"><span className="avatar pale">{customer?.business.slice(0,2).toUpperCase() || "CU"}</span><span><b>{customer?.business || "Select a customer"}</b><small>{customer ? `${customer.contact} · ${customer.email}` : "Each customer has a separate saved draft"}</small></span><select aria-label="Select customer" value={selectedCustomerId} onChange={(event) => setSelectedCustomerId(event.target.value)}><option value="">Select customer…</option>{customers.map((record) => <option key={record.id} value={record.id}>{record.business} — {record.contact}</option>)}</select></div>
       <div className="builder-section"><span className="builder-number">2</span><div><h2>Select products and starting quantities</h2><p>Customers will see these products without prices and may edit every quantity before submitting.</p></div></div><div className="search builder-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products or SKU" /></div><div className="actions builder-bulk-actions"><button className="button secondary" onClick={selectAllVisible}>Select all {visible.length} matching products</button><button className="button secondary" disabled={!selected.length} onClick={clearSelection}>Clear selection</button><strong>{selected.length} selected</strong></div><div className="builder-products">{visible.map((p) => <div className="builder-product" key={p.sku}><input aria-label={`Select ${p.name}`} type="checkbox" checked={selected.includes(p.sku)} onChange={() => toggle(p.sku)} /><span><b>{p.name}</b><small>{p.sku} · {p.pack} · {p.stock < 20 ? "Low stock" : "In stock"}</small></span>{selected.includes(p.sku) && <label className="builder-quantity">Starting qty<input aria-label={`Starting quantity for ${p.name}`} type="number" min="1" max={Math.max(1, p.stock)} value={quantities[p.sku] || 1} onChange={(event) => setInitialQuantity(p.sku, Number(event.target.value))} /></label>}</div>)}</div>
     </section><aside className="panel builder-summary"><p className="eyebrow">Link summary</p><h2>{customer?.business}</h2><dl><dt>Products included</dt><dd>{selected.length}</dd><dt>Prices visible</dt><dd>No</dd><dt>Assigned rep</dt><dd>Signed-in sales representative</dd><dt>Expires</dt><dd>24 hours</dd></dl><div className="notice"><b>Customer action</b><br/>Enter quantities and send the completed request back to sales.</div><button className="button primary wide" disabled={!selected.length || generating} onClick={generateLink}>{generating ? "Generating secure site…" : "Generate secure customer site →"}</button>{generatedLink && <div className="generated-link"><label>Customer site<input readOnly value={generatedLink} onFocus={(event) => event.currentTarget.select()} /></label><button className="button primary wide" onClick={copyLink}>Copy link</button><button className="button secondary wide" onClick={downloadEstimate}>Download Estimate</button><button className="button secondary wide" onClick={() => window.open(generatedLink, "_blank", "noopener,noreferrer")}>Open customer site ↗</button><small>The PDF is marked awaiting approval. This private customer link expires after 24 hours.</small></div>}</aside></div>
   </div>;
@@ -587,7 +599,7 @@ function Orders({ orderCreated, stage, setStage, saveOrderStatus, products, cart
     <div className="detail-grid"><section className="panel quote-editor"><div className="panel-head"><div><h2>{changeRequest ? "Revise estimate" : "Build estimate"}</h2><p>Catalog pricing is the default. Sales may adjust items, quantities, unit prices, discount, shipping, tax, and notes before sending.</p></div><button className="button secondary" onClick={addLine}>＋ Add item</button></div><div className="quote-editor-head"><span>Item</span><span>Qty</span><span>Unit price</span><span>Line total</span><span></span></div><div>{amounts.lines.map((line, index) => <div className="quote-edit-line" key={`${line.sku}-${index}`}><select aria-label={`Item ${index + 1}`} value={line.sku} onChange={(event) => { const product = products.find((item) => item.sku === event.target.value)!; updateLine(index, { sku: product.sku, unitPrice: product.price }); }}>{products.filter((product) => product.published).map((product) => <option key={product.sku} value={product.sku}>{product.sku} - {product.name}</option>)}</select><input aria-label={`Quantity for quote line ${index + 1}`} type="number" min="1" value={line.quantity} onChange={(event) => updateLine(index, { quantity: Math.max(1, Number(event.target.value)) })}/><div className="money-input"><span>$</span><input aria-label={`Unit price for quote line ${index + 1}`} type="number" min="0" step="0.01" value={line.unitPrice} onChange={(event) => updateLine(index, { unitPrice: Math.max(0, Number(event.target.value)) })}/></div><b>{money(line.quantity * line.unitPrice)}</b><button aria-label={`Remove quote line ${index + 1}`} className="remove-line" onClick={() => setQuoteLines(draftLines.filter((_, lineIndex) => lineIndex !== index))}>×</button><small>{line.pack} · {line.stock} in stock · List {money(line.price)}</small></div>)}</div><div className="quote-terms"><div className="estimate-adjustments"><label>Discount percentage<input aria-label="Discount percentage" type="number" min="0" max="100" step="0.5" value={discountPercent} onChange={(event) => setDiscountPercent(Math.min(100, Math.max(0, Number(event.target.value))))}/></label><label>Shipping amount ($)<input aria-label="Shipping amount" type="number" min="0" step="0.01" value={shippingAmount} onChange={(event) => setShippingAmount(Math.max(0, Number(event.target.value)))}/></label><label>Tax percentage<input aria-label="Tax percentage" type="number" min="0" max="100" step="0.01" value={taxPercent} onChange={(event) => setTaxPercent(Math.min(100, Math.max(0, Number(event.target.value))))}/></label></div><label>Notes shown on estimate<textarea aria-label="Estimate notes" value={quoteNotes} onChange={(event) => setQuoteNotes(event.target.value)} placeholder="Delivery timing, promotional terms, substitutions, or other customer-facing notes"/></label><div className="quote-summary"><span>Subtotal <b>{money(amounts.subtotal)}</b></span>{discountPercent > 0 && <span>Discount ({discountPercent}%) <b>-{money(amounts.discount)}</b></span>}<span>Shipping <b>{money(amounts.shipping)}</b></span><span>Tax ({taxPercent}%) <b>{money(amounts.tax)}</b></span><strong>Total <b>{money(amounts.total)}</b></strong></div></div></section>
       <aside className="panel customer-card"><div className="panel-head"><div><h2>Customer & delivery</h2></div></div><p>Customer contact, fulfillment, and delivery details are supplied with the submitted secure order request.</p></aside>
     </div>
-    <div className="order-footer"><div><small>Final estimate total</small><strong>{money(amounts.total)}</strong></div><button className="button secondary" onClick={() => notify("Estimate draft saved")}>Save draft</button><button className="button primary" disabled={!draftLines.length} onClick={async () => { setQuoteLines(draftLines); const saved = await saveOrderStatus?.("proforma", { quoteLines: draftLines, discountPercent, shippingAmount, taxPercent, quoteNotes }); if (saved === false) return; setChangeRequest(""); setStage("proforma"); go("documents"); notify(changeRequest ? "Revised estimate sent" : "Estimate created and sent"); }}>{changeRequest ? "Send revised estimate →" : "Send for approval →"}</button></div>
+    <div className="order-footer"><div><small>Final estimate total</small><strong>{money(amounts.total)}</strong></div><button className="button secondary" disabled={!draftLines.length} onClick={async () => { setQuoteLines(draftLines); const saved = await saveOrderStatus?.("request", { quoteLines: draftLines, discountPercent, shippingAmount, taxPercent, quoteNotes }); notify(saved === false ? "Estimate draft could not be saved" : "Estimate draft saved"); }}>Save draft</button><button className="button primary" disabled={!draftLines.length} onClick={async () => { setQuoteLines(draftLines); const saved = await saveOrderStatus?.("proforma", { quoteLines: draftLines, discountPercent, shippingAmount, taxPercent, quoteNotes }); if (saved === false) return; setChangeRequest(""); setStage("proforma"); go("documents"); notify(changeRequest ? "Revised estimate sent" : "Estimate created and sent"); }}>{changeRequest ? "Send revised estimate →" : "Send for approval →"}</button></div>
   </div>;
 }
 
