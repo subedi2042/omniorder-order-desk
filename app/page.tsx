@@ -186,7 +186,7 @@ export default function Home() {
       fetch(`/api/catalog-shares?token=${encodeURIComponent(shareToken)}`).then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Secure catalog unavailable");
-        setProducts((data.products || []).map((product: CustomerProduct) => ({ ...product, price: 0 })));
+        setProducts((current) => (data.products || []).map((product: CustomerProduct) => ({ ...product, price: current.find((saved) => saved.sku === product.sku)?.price || 0 })));
         setTargetSkus((data.products || []).map((product: CustomerProduct) => product.sku));
         setCart(data.initialQuantities || {});
         if (data.customer) setOrderCustomer(data.customer);
