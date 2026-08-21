@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   if (!await requireSalesUser(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json() as { products?: ProductInput[] };
-  const products = (body.products || []).map((product) => ({ ...product, sku: String(product.sku || "").trim(), name: String(product.name || "").trim(), category: String(product.category || "Imported").trim(), pack: String(product.pack || "Each").trim(), price: Math.max(0, Number(product.price) || 0), stock: Math.max(0, Math.floor(Number(product.stock) || 0)), published: Boolean(product.published) })).filter((product) => product.sku && product.name);
+  const products = (body.products || []).map((product) => ({ ...product, sku: String(product.sku || "").trim(), name: String(product.name || "").trim(), category: String(product.category || "").trim(), pack: String(product.pack || "Each").trim(), price: Math.max(0, Number(product.price) || 0), stock: Math.max(0, Math.floor(Number(product.stock) || 0)), published: Boolean(product.published) })).filter((product) => product.sku && product.name && product.category);
   if (!products.length) return Response.json({ error: "At least one valid product is required" }, { status: 400 });
   try {
     const sql = database();

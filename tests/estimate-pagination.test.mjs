@@ -60,9 +60,14 @@ test("Google sign-in cannot spin indefinitely", async () => {
 
 test("sales order products are grouped by category", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const productsRoute = await readFile(new URL("../app/api/products/route.ts", import.meta.url), "utf8");
   assert.match(pageSource, /const \[categoryFilter, setCategoryFilter\]/);
   assert.match(pageSource, /aria-label="Filter products by category"/);
-  assert.match(pageSource, /Showing all categories/);
+  assert.match(pageSource, /Group by CSV category/);
+  assert.match(pageSource, /Showing all CSV categories/);
+  assert.doesNotMatch(pageSource, /category: row\.category \|\| "Imported"/);
+  assert.doesNotMatch(productsRoute, /category \|\| "Imported"/);
+  assert.match(productsRoute, /product\.sku && product\.name && product\.category/);
   assert.match(pageSource, /const groupedVisible = useMemo/);
   assert.match(pageSource, /className="builder-category"/);
   assert.match(pageSource, /Select category/);
