@@ -57,3 +57,11 @@ test("Google sign-in cannot spin indefinitely", async () => {
   assert.match(pageSource, /Google sign-in timed out/);
   assert.match(authSource, /AbortSignal\.timeout\(10000\)/);
 });
+
+test("sales order products are grouped by category", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(pageSource, /const groupedVisible = useMemo/);
+  assert.match(pageSource, /className="builder-category"/);
+  assert.match(pageSource, /Select category/);
+  assert.match(pageSource, /group\.products\.map/);
+});
