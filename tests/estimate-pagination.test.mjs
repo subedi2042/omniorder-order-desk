@@ -77,3 +77,15 @@ test("sales order products are grouped by category", async () => {
   assert.match(pageSource, /Select category/);
   assert.match(pageSource, /group\.products\.map/);
 });
+
+test("customer and catalog changes are confirmed only after durable storage", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const customerRoute = await readFile(new URL("../app/api/customers/route.ts", import.meta.url), "utf8");
+  const productsRoute = await readFile(new URL("../app/api/products/route.ts", import.meta.url), "utf8");
+
+  assert.match(pageSource, /const saveCustomer = async/);
+  assert.match(pageSource, /Customer added and saved/);
+  assert.match(pageSource, /No customer records were changed/);
+  assert.match(customerRoute, /CREATE TABLE IF NOT EXISTS customers/);
+  assert.match(productsRoute, /CREATE TABLE IF NOT EXISTS products/);
+});

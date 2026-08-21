@@ -9,10 +9,16 @@ function database() {
   return sql;
 }
 
+async function ensureTable(sql: ReturnType<typeof database>) {
+  await sql`CREATE TABLE IF NOT EXISTS products (sku TEXT PRIMARY KEY,name TEXT NOT NULL,category TEXT NOT NULL,pack TEXT NOT NULL,price_cents BIGINT NOT NULL,stock BIGINT NOT NULL,published BOOLEAN NOT NULL DEFAULT FALSE,updated_at BIGINT NOT NULL)`;
+}
+
 export async function GET(request: Request) {
   if (!await requireSalesUser(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const results = await database()`SELECT sku,name,category,pack,price_cents,stock,published FROM products ORDER BY CASE WHEN BTRIM(sku) ~ '^[0-9]+$' THEN BTRIM(sku)::numeric END NULLS LAST, BTRIM(sku)`;
+    const sql = database();
+    await ensureTable(sql);
+    const results = await sql`SELECT sku,name,category,pack,price_cents,stock,published FROM products ORDER BY CASE WHEN BTRIM(sku) ~ '^[0-9]+$' THEN BTRIM(sku)::numeric END NULLS LAST, BTRIM(sku)`;
     return Response.json({ products: results.map((product: any) => ({ ...product, price: Number(product.price_cents) / 100, stock: Number(product.stock), published: Boolean(product.published) })) });
   } catch (error) { console.error("Product load failed", error); return Response.json({ error: "Catalog storage unavailable" }, { status: 503 }); }
 }
@@ -24,6 +30,7 @@ export async function POST(request: Request) {
   if (!products.length) return Response.json({ error: "At least one valid product is required" }, { status: 400 });
   try {
     const sql = database();
+    await ensureTable(sql);
     if (body.replaceAll) {
       const catalogJson = JSON.stringify(products);
       await sql.transaction([
@@ -45,6 +52,7 @@ export async function DELETE(request: Request) {
   const { sku, all } = await request.json() as { sku?: string; all?: boolean };
   try {
     const sql = database();
+    await ensureTable(sql);
     if (all) { await sql`DELETE FROM products`; return Response.json({ cleared: true }); }
     if (!sku?.trim()) return Response.json({ error: "Product SKU required" }, { status: 400 });
     await sql`DELETE FROM products WHERE sku = ${sku.trim()}`;
