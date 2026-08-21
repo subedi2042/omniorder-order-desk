@@ -2,6 +2,12 @@
 
 A production-oriented wholesale order-management web application for Desi Kitchen sales representatives and customers. This branch delivers the launch workflow: published catalog → customer quantity request → sales review → priced estimate → customer approval → matching approved estimate PDF.
 
+## Live application
+
+**Public production:** [https://desi-kitchen-order-desk.onrender.com](https://desi-kitchen-order-desk.onrender.com)
+
+The Render URL is the primary address for sales representatives and customers. It opens directly in a regular browser and does not require ChatGPT Sites access.
+
 ## Desi Kitchen production branch
 
 The `codex/desi-kitchen` branch carries the Desi Kitchen identity, public logo, Fraunces/DM Sans typography, deep-green/leaf-green/brown palette, authenticated sales workspace, durable product/customer storage, and approved estimate workflow. Customers do not create stored login accounts; they enter through a sales-issued secure code or order link.
@@ -12,7 +18,8 @@ Sales representative Sahil Man Singh Pradhan should create the first sales accou
 
 - Sales dashboard with live workflow metrics and recent requests
 - Sales-initiated targeted order lists: choose a customer and products, generate a secure link, and receive quantities back into the same order workflow
-- Product and inventory workspace modeled on the supplied 848-SKU warehouse list
+- Category slicer in the sales order builder: select a category to show only that group, search within it, select the full group, and preserve selections while switching categories
+- Product and inventory workspace populated from the current Desi Kitchen wholesale catalog
 - Search, category filtering, visibility controls, stock status, price, create, and edit
 - CSV import using `sku,name,category,pack,stock,price`; SKU is the update key
 - Account-free customer access using a single-order secure token or a new sales-shared access code
@@ -33,9 +40,9 @@ Sales representative Sahil Man Singh Pradhan should create the first sales accou
 
 ## Google sales sign-in setup
 
-Create a Google OAuth 2.0 Web application client and authorize both the local and published application origins. Copy `.env.example` to `.env.local`, set `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and generate a long random `AUTH_SESSION_SECRET`. Add the same values to the hosted environment before publishing. No Google client secret is used or committed.
+Create a Google OAuth 2.0 Web application client and authorize both the local and published application origins. The production OAuth client must include `https://desi-kitchen-order-desk.onrender.com` as an authorized JavaScript origin. Copy `.env.example` to `.env.local`, set `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and generate a long random `AUTH_SESSION_SECRET`. Add the same values to the hosted environment before publishing. No Google client secret is used or committed.
 
-The interface contains seeded sample inventory from the supplied product list. The source HTML contains the complete 848-item mapping; the MVP surfaces a representative cross-category subset so the workflow stays fast and reviewable.
+Products, prices, categories, and inventory are managed through the combined catalog CSV and persisted in the configured production database. Customer-facing catalogs never expose prices before an estimate is sent.
 
 ## Run locally
 
@@ -52,11 +59,11 @@ For a production build:
 npm run build
 ```
 
-## Render preview deployment
+## Render production deployment
 
-The repository includes a `render.yaml` Blueprint for a free Render web service. Connect this repository in Render, select the `codex/desi-kitchen` branch, and deploy the Blueprint. Render generates the session-signing secret automatically and serves the application from a free `onrender.com` URL.
+The repository includes a `render.yaml` Blueprint for the public web service. Render deploys the `codex/desi-kitchen` branch, generates the session-signing secret, reads the managed `DATABASE_URL`, and serves the application at the production URL above.
 
-The free service is intended for workflow testing and demonstrations. It sleeps after inactivity and its local filesystem is ephemeral, so uploaded customers, inventory changes, and password accounts can be lost when the service sleeps, restarts, or redeploys. Before using the application for real orders, connect the persistence layer to a durable managed database and configure production Google authentication credentials.
+The free Render instance sleeps after inactivity, so the first request can take approximately one minute to wake. Application records are stored through `DATABASE_URL`; do not depend on Render's local filesystem for customer, product, order, or authentication data. Production also requires `NEXT_PUBLIC_GOOGLE_CLIENT_ID` and `AUTH_SESSION_SECRET` in the hosted environment.
 
 ## CSV import format
 
@@ -92,7 +99,7 @@ business,contact,email,phone,address
 - Add secure sales authentication and role permissions for sales, distribution, and admin
 - Store imports and generated PDF documents in object storage
 - Add transactional email delivery, approval links, expiry, and audit events
-- Import and validate all 848 source products and support spreadsheet column mapping
+- Continue validating the complete source catalog and support spreadsheet column mapping
 - Activate the retained distribution, dispatch, final invoice, and payment workflow
 
 ### Phase 3 — Operational launch
