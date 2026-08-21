@@ -310,7 +310,7 @@ export default function Home() {
       const required = ["sku", "name", "category", "pack", "price", "stock", "published"];
       if (!required.every((header) => headers.includes(header))) { event.target.value = ""; return notify(`CSV needs these columns: ${required.join(", ")}`); }
       const parsed = rows.map((row) => ({ sku: row.sku?.trim(), name: row.name?.trim(), category: row.category?.trim(), pack: row.pack?.trim() || "Each", stock: Math.max(0, Math.floor(Number(row.stock) || 0)), price: Math.max(0, Number(row.price) || 0), published: !["false", "no", "0"].includes(String(row.published).toLowerCase()) })).filter((product) => product.sku && product.name && product.category);
-      if (parsed.length) { const response = await fetch("/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ products: parsed }) }); if (!response.ok) return notify("Upload could not be saved. Please try again."); setProducts((current) => [...parsed, ...current.filter((product) => !parsed.some((next) => next.sku === product.sku))]); notify(`${parsed.length} products saved; matching SKUs were replaced`); }
+      if (parsed.length) { const response = await fetch("/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ products: parsed, replaceAll: true }) }); if (!response.ok) return notify("Upload could not be saved. Please try again."); setProducts([...parsed].sort(compareSkuAscending)); notify(`${parsed.length} products saved; the catalog now matches this CSV exactly`); }
       else notify("No valid product rows found. Download and use the combined template.");
     };
     reader.readAsText(file);

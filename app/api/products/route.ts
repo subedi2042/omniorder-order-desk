@@ -19,11 +19,22 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!await requireSalesUser(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await request.json() as { products?: ProductInput[] };
+  const body = await request.json() as { products?: ProductInput[]; replaceAll?: boolean };
   const products = (body.products || []).map((product) => ({ ...product, sku: String(product.sku || "").trim(), name: String(product.name || "").trim(), category: String(product.category || "").trim(), pack: String(product.pack || "Each").trim(), price: Math.max(0, Number(product.price) || 0), stock: Math.max(0, Math.floor(Number(product.stock) || 0)), published: Boolean(product.published) })).filter((product) => product.sku && product.name && product.category);
   if (!products.length) return Response.json({ error: "At least one valid product is required" }, { status: 400 });
   try {
     const sql = database();
+    if (body.replaceAll) {
+      const catalogJson = JSON.stringify(products);
+      await sql.transaction([
+        sql`DELETE FROM products`,
+        sql`INSERT INTO products (sku,name,category,pack,price_cents,stock,published,updated_at)
+            SELECT item.sku,item.name,item.category,item.pack,ROUND(item.price * 100)::integer,item.stock,item.published,${Date.now()}
+            FROM jsonb_to_recordset(${catalogJson}::jsonb)
+            AS item(sku text,name text,category text,pack text,price numeric,stock integer,published boolean)`
+      ]);
+      return Response.json({ saved: products.length, replacedCatalog: true, storage: "postgres" });
+    }
     for (const product of products) await sql`INSERT INTO products (sku,name,category,pack,price_cents,stock,published,updated_at) VALUES (${product.sku},${product.name},${product.category},${product.pack},${Math.round(product.price * 100)},${product.stock},${product.published},${Date.now()}) ON CONFLICT(sku) DO UPDATE SET name=excluded.name,category=excluded.category,pack=excluded.pack,price_cents=excluded.price_cents,stock=excluded.stock,published=excluded.published,updated_at=excluded.updated_at`;
     return Response.json({ saved: products.length, replacedBySku: true, storage: "postgres" });
   } catch (error) { console.error("Product save failed", error); return Response.json({ error: "Catalog could not be saved" }, { status: 503 }); }

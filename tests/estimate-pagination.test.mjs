@@ -68,6 +68,10 @@ test("sales order products are grouped by category", async () => {
   assert.doesNotMatch(pageSource, /category: row\.category \|\| "Imported"/);
   assert.doesNotMatch(productsRoute, /category \|\| "Imported"/);
   assert.match(productsRoute, /product\.sku && product\.name && product\.category/);
+  assert.match(pageSource, /JSON\.stringify\(\{ products: parsed, replaceAll: true \}\)/);
+  assert.match(productsRoute, /if \(body\.replaceAll\)/);
+  assert.match(productsRoute, /sql\.transaction/);
+  assert.match(productsRoute, /jsonb_to_recordset/);
   assert.match(pageSource, /const groupedVisible = useMemo/);
   assert.match(pageSource, /className="builder-category"/);
   assert.match(pageSource, /Select category/);

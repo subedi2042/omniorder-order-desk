@@ -74,7 +74,7 @@ sku,name,category,pack,stock,price
 10191,Turmeric Ground 3oz (85g),3 Oz,12 x 3oz,37,2.49
 ```
 
-Re-importing an existing SKU updates that item rather than creating a duplicate.
+Uploading the combined catalog CSV replaces the active catalog as one transaction. Existing SKUs receive the uploaded values, products omitted from the new file are removed, and the category slicer therefore contains only categories present in the latest CSV.
 
 Products and inventory use one combined CSV import. The blank template at `/templates/desi-kitchen-product-list.csv` contains editable product, price, stock, and publication fields without exposing wholesale catalog data in the public repository. Uploads are saved to the backend, and a row whose SKU already exists replaces that product with the newly uploaded values. Customer imports use `/templates/desi-kitchen-customers.csv`.
 
