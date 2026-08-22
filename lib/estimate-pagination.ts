@@ -22,3 +22,16 @@ export function paginateEstimateLines<T>(lines: T[]) {
   });
   return pages.filter((page) => page.length > 0);
 }
+
+export function estimateTotalsLayout(nextRowY: number, hasDiscount: boolean) {
+  const subtotalY = nextRowY - 14;
+  let nextTotalY = subtotalY - 20;
+  const discountY = hasDiscount ? nextTotalY : null;
+  if (hasDiscount) nextTotalY -= 20;
+  const shippingY = nextTotalY;
+  const taxY = shippingY - 20;
+  const ruleY = taxY - 13;
+  const totalY = ruleY - 22;
+
+  return { subtotalY, discountY, shippingY, taxY, ruleY, totalY };
+}

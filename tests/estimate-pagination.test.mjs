@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { paginateEstimateLines } from "../lib/estimate-pagination.ts";
+import { estimateTotalsLayout, paginateEstimateLines } from "../lib/estimate-pagination.ts";
 
 for (const count of [0, 1, 20, 21, 28, 29, 59, 60, 61, 96, 97, 250]) {
   test(`paginates ${count} estimate lines without loss, duplication, or totals-only pages`, () => {
@@ -24,6 +24,23 @@ test("preserves every product across all boundary sizes through 500 lines", () =
     assert.ok(pages.every((page) => page.length > 0 || count === 0), `empty page at ${count}`);
     assert.ok(pages.at(-1).length > 0 || count === 0, `totals-only page at ${count}`);
     assert.ok(pages.at(-1).length <= (pages.length === 1 ? 20 : 32), `last page overflow at ${count}`);
+  }
+});
+
+test("totals follow the final product row and remain clear of the footer", () => {
+  for (const count of [1, 8, 20, 21, 32, 33, 60, 97, 250]) {
+    const pages = paginateEstimateLines(Array.from({ length: count }, (_, index) => index));
+    const finalPage = pages.at(-1);
+    const firstAndOnlyPage = pages.length === 1;
+    const nextRowY = (firstAndOnlyPage ? 551 : 737) - finalPage.length * 17;
+    const lastDividerY = nextRowY + 10;
+
+    for (const hasDiscount of [false, true]) {
+      const totals = estimateTotalsLayout(nextRowY, hasDiscount);
+      const gapAfterItems = lastDividerY - totals.subtotalY;
+      assert.ok(gapAfterItems >= 17 && gapAfterItems <= 51, `totals gap is not 1-3 lines at ${count} items`);
+      assert.ok(totals.totalY > 36, `totals collide with footer at ${count} items`);
+    }
   }
 });
 

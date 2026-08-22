@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { paginateEstimateLines } from "@/lib/estimate-pagination";
+import { estimateTotalsLayout, paginateEstimateLines } from "@/lib/estimate-pagination";
 
 type Product = { sku: string; name: string; category: string; pack: string; price: number; stock: number; published: boolean };
 type CustomerRecord = { id: string; business: string; contact: string; email: string; phone: string; address: string; accessCode?: string; codeExpiresAt?: string; shareToken?: string };
@@ -84,7 +84,15 @@ async function createProformaPdf(products: Product[], cart: Cart, quoteLines: Qu
       rowY -= 17;
     });
     if (isLastPage) {
-      commands.push(text("Subtotal", 390, 151, 9), text(money(subtotal), 528, 151, 9, true), ...(discountPercent > 0 ? [text(`Discount (${discountPercent}%)`, 390, 131, 9), text(`-${money(discount)}`, 528, 131, 9, true)] : []), text("Shipping", 390, 111, 9), text(money(shipping), 528, 111, 9, true), text(`Tax (${taxPercent}%)`, 390, 91, 9), text(money(tax), 528, 91, 9, true), rule(390, 78, 576, 78, 1.1, "0 .25 .18"), text("TOTAL", 390, 56, 12, true, "0 .25 .18"), text(money(total), 515, 56, 12, true, "0 .25 .18"));
+      const totals = estimateTotalsLayout(rowY, discountPercent > 0);
+      commands.push(
+        text("Subtotal", 390, totals.subtotalY, 9), text(money(subtotal), 528, totals.subtotalY, 9, true),
+        ...(totals.discountY !== null ? [text(`Discount (${discountPercent}%)`, 390, totals.discountY, 9), text(`-${money(discount)}`, 528, totals.discountY, 9, true)] : []),
+        text("Shipping", 390, totals.shippingY, 9), text(money(shipping), 528, totals.shippingY, 9, true),
+        text(`Tax (${taxPercent}%)`, 390, totals.taxY, 9), text(money(tax), 528, totals.taxY, 9, true),
+        rule(390, totals.ruleY, 576, totals.ruleY, 1.1, "0 .25 .18"),
+        text("TOTAL", 390, totals.totalY, 12, true, "0 .25 .18"), text(money(total), 515, totals.totalY, 12, true, "0 .25 .18"),
+      );
     }
     commands.push(rule(36, 36, 576, 36, .5), text(`Page ${pageIndex + 1} of ${linePages.length}`, 278, 20, 8, false, ".32 .38 .48"));
     return commands.join("\n");
